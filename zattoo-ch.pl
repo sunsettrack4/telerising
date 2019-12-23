@@ -21,7 +21,7 @@
 # #######################################
 
 print "=============================================\n";
-print " TELERISING API v0.1.0 // ZATTOO SWITZERLAND \n";
+print " TELERISING API v0.1.1 // ZATTOO SWITZERLAND \n";
 print "=============================================\n\n";
 
 use strict;
@@ -38,7 +38,6 @@ use HTTP::Status;
 use HTTP::Daemon;
 use HTTP::Request::Params;
 use HTTP::Request::Common qw{ POST };
-use HTTP::Request::Params;
 use HTTP::Cookies;
 use HTML::TreeBuilder;
 use URI::Escape;
@@ -322,7 +321,7 @@ sub http_child {
 		
 		} elsif( defined $zch and defined $zstart and defined $zend and defined $zkeyval and defined $quality and defined $platform ) {
 			
-			my $time  = time()-20;
+			my $time  = time()-24;
 			my $check = $time/4;
 			
 			if( defined $time ) {
@@ -480,8 +479,10 @@ sub http_child {
 				my $link = $recurl_response->content;
 				my $uri  = $recurl_response->base;
 				my $ch   = $recurl_response->base;
+				
 				$uri     =~ s/(.*)(\/.*.m3u8.*)/$1/g;
-				$ch      =~ s/.*.tv\///g;
+				$ch      =~ s/.*\.tv\///g;
+				$ch      =~ s/http:\/\/zattoo-hls5-live.akamaized.net\///g;
 				$ch      =~ s/\/.*//g;
 				
 				# REMOVE RECORDING
