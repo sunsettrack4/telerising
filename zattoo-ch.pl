@@ -20,9 +20,9 @@
 # TELERISING API FOR ZATTOO SWITZERLAND #
 # #######################################
 
-print "=============================================\n";
-print " TELERISING API v0.1.1 // ZATTOO SWITZERLAND \n";
-print "=============================================\n\n";
+print "\n=============================================\n";
+print   " TELERISING API v0.1.2 // ZATTOO SWITZERLAND \n";
+print   "=============================================\n\n";
 
 use strict;
 use warnings;
@@ -119,21 +119,48 @@ $login_token       =~ s/(.*)(beaker.session.id=)(.*)(; Path.*)/$3/g;
 # ANALYSE ACCOUNT
 my $analyse_login  = decode_json($login_response->content);
 my $country        = $analyse_login->{"session"}->{"service_region_country"};
+my $alias          = $analyse_login->{"session"}->{"aliased_country_code"};
 my @products       = @{ $analyse_login->{"session"}->{"user"}->{"products"} };
 my $powerid        = $analyse_login->{"session"}->{"power_guide_hash"};
 
+my $product_code;
+
+if( @products ) {
+	foreach my $products ( @products) {
+		if( $products->{"name"} =~ m/PREMIUM/ ) {
+			$product_code = "PREMIUM";
+		} elsif( $products->{"name"} =~ m/ULTIMATE/ ) {
+			$product_code = "ULTIMATE";
+		}
+	}
+}
+
+if( defined $product_code ) {
+	if( $product_code eq "PREMIUM" ) {
+		print "--- YOUR ACCOUNT TYPE: PREMIUM ---\n\n"
+	} elsif( $product_code eq "ULTIMATE" ) {
+		print "--- YOUR ACCOUNT TYPE: ULTIMATE ---\n\n"
+	}
+} else {
+	print "--- YOUR ACCOUNT TYPE: FREE ---\n\n";
+	$product_code = "FREE";
+}
+
 if( $country ne "CH" ) {
-	print "ERROR: Your German Zattoo account is not supported by this API.\n";
+	print "ERROR: Your German Zattoo account is not supported by this API.\n\n";
 	exit;
 }
 
-if( @products ) {
-	print "------------------------------\n";
-	print "PRODUCTS: \n";
-	foreach my $products ( @products) {
-		print "* " . $products->{"name"} . "\n";
-	}
-	print "------------------------------\n\n";
+my $tv_mode;
+
+if( $alias ne "CH" and $product_code ne "FREE" ) {
+	print "NOTICE: No Swiss IP address detected, using PVR mode for Live TV.\n\n";
+	$tv_mode = "pvr";
+} elsif ( $alias ne "CH" and $product_code eq "FREE" ) {
+	print "ERROR: No Swiss IP address detected, Zattoo services can't be used.\n\n";
+	exit;
+} else {
+	$tv_mode = "live";
 }
 
 
@@ -143,17 +170,17 @@ if( @products ) {
 
 # DEFINE PARAMS
 my %O = (
-    'port' => 8080,
     'clients' => 10,
     'max-req' => 100,
 );
+my $port = 8080;
 
 # START DAEMON
 my $d = HTTP::Daemon->new(
-    LocalPort => $O{'port'},
+    LocalPort => $port,
     Reuse => 1,
 	ReuseAddr => 1,
-	ReusePort => $O{'port'},
+	ReusePort => $port,
 ) or die "API CANNOT BE STARTED!\n\n";
 
 my $hostipchecker = Sys::HostIP->new;
@@ -300,7 +327,7 @@ sub http_child {
 								$logo =~ s/84x48.png/210x120.png/g;
 								
 								$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $chid . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
-								$ch_m3u = $ch_m3u .  "http://$hostip:8080/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+								$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
 							}
 						}
 					}
@@ -404,8 +431,215 @@ sub http_child {
 		# PROVIDE CHANNEL M3U8
 		#
 		
+		# CONDITION: HOME
+		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "live" ) {
+			
+			# CHECK CONDITIONS
+			if( $platform ne "hls" and  $platform ne "hls5" ) {
+				
+				# DO NOT PROCESS: WRONG PLATFORM
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Invalid platform\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid platform");
+				$c->send_response($response);
+				$c->close;
+			
+			} elsif( $quality ne "8000" and $quality ne "4999" and $quality ne "5000" and $quality ne "3000" and $quality ne "1500" ) {
+				
+				# DO NOT PROCESS: WRONG QUALITY
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Invalid bandwidth\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid bandwidth");
+				$c->send_response($response);
+				$c->close;
+			
+			} elsif( defined $channel ) {
+				
+				# REQUEST PLAYLIST URL
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Loading Live URL\n";
+				my $live_url = "https://zattoo.com/zapi/watch/live/$channel";
+				
+				my $live_agent = LWP::UserAgent->new;
+				my $cookie_jar    = HTTP::Cookies->new;
+				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/','zattoo.com',443);
+				$live_agent->cookie_jar($cookie_jar);
+
+				my $live_request  = HTTP::Request::Common::POST($live_url, ['stream_type' => $platform, 'https_watch_urls' => 'True', 'timeshift' => '10800', 'cast_stream_type' => $platform ]);
+				my $live_response = $live_agent->request($live_request);
+				
+				my $liveview_file;
+				my $liveview_url;
+				
+				if( $live_response->is_error ) {
+					
+					# DO NOT PROCESS: WRONG CHANNEL ID
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Invalid Channel ID\n";
+					my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+					$response->header('Content-Type' => 'text/html'),
+					$response->content("API ERROR: Invalid Channel ID");
+					$c->send_response($response);
+					$c->close;
+					
+				} else {
+					
+					$liveview_file = decode_json( $live_response->content );
+					$liveview_url = $liveview_file->{'stream'}->{'cast_url'};
+					
+				}
+				
+				# LOAD PLAYLIST URL
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Loading M3U8\n";
+				my $livestream_agent  = LWP::UserAgent->new;
+				
+				my $livestream_request  = HTTP::Request::Common::GET($liveview_url);
+				my $livestream_response = $livestream_agent->request($livestream_request);
+				
+				my $link = $livestream_response->content;
+				my $uri  = $livestream_response->base;
+				
+				$uri     =~ s/(.*)(\/.*.m3u8.*)/$1/g;
+				
+				# EDIT PLAYLIST URL
+				if( $platform eq "hls" and $quality eq "8000" ) {
+					
+					#
+					# HLS 8000 ULTIMATE
+					#
+					
+					my $final_quality;
+					
+					if( $link =~ m/BANDWIDTH=8000000/ ) {
+						$final_quality = "8000";
+					} elsif( $link =~ m/BANDWIDTH=5000000/ ) {
+						$final_quality = "5000";
+					} elsif( $link =~ m/BANDWIDTH=2999000/ ) {
+						$final_quality = "2999";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ ) {
+						$final_quality = "1500";
+					}
+					
+					# EDIT PLAYLIST
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing M3U8\n";
+					$link        =~ /(.*live-$final_quality.*)/m;
+					my $link_url = $uri . "/" . $1; 
+					
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" . $final_quality . "000\n" . $link_url;
+					
+					my $response = HTTP::Response->new( 200, 'OK');
+					$response->header('Content-Type' => 'text/html'),
+					$response->content($m3u8);
+					$c->send_response($response);
+					$c->close;
+					
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Playlist sent to client\n";
+				
+				} elsif( $platform eq "hls" and $quality eq "5000" ) {
+					
+					#
+					# HLS 5000 PREMIUM
+					#
+					
+					my $final_quality;
+					
+					if( $link =~ m/BANDWIDTH=5000000/ ) {
+						$final_quality = "5000";
+					} elsif( $link =~ m/BANDWIDTH=2999000/ ) {
+						$final_quality = "2999";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ ) {
+						$final_quality = "1500";
+					}
+					
+					# EDIT PLAYLIST
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing M3U8\n";
+					$link        =~ /(.*live-$final_quality.*)/m;
+					my $link_url = $uri . "/" . $1; 
+					
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" . $final_quality . "000\n" . $link_url;
+					
+					my $response = HTTP::Response->new( 200, 'OK');
+					$response->header('Content-Type' => 'text/html'),
+					$response->content($m3u8);
+					$c->send_response($response);
+					$c->close;
+					
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Playlist sent to client\n";
+				
+				} elsif( $platform eq "hls" and $quality eq "3000" ) {
+					
+					#
+					# HLS 3000 PREMIUM
+					#
+					
+					my $final_quality;
+					
+					if( $link =~ m/BANDWIDTH=3000000/ ) {
+						$final_quality = "3000";
+					} elsif( $link =~ m/BANDWIDTH=2999000/ ) {
+						$final_quality = "2999";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ ) {
+						$final_quality = "1500";
+					}
+					
+					# EDIT PLAYLIST
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing M3U8\n";
+					$link        =~ /(.*live-$final_quality.*)/m;
+					my $link_url = $uri . "/" . $1; 
+					
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" . $final_quality . "000\n" . $link_url;
+					
+					my $response = HTTP::Response->new( 200, 'OK');
+					$response->header('Content-Type' => 'text/html'),
+					$response->content($m3u8);
+					$c->send_response($response);
+					$c->close;
+					
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Playlist sent to client\n";
+				
+				} elsif( $platform eq "hls" and $quality eq "1500" ) {
+					
+					#
+					# HLS 1500 FREE
+					#
+					
+					my $final_quality;
+					
+					if( $link =~ m/BANDWIDTH=1500000/ ) {
+						$final_quality = "1500";
+					}
+					
+					# EDIT PLAYLIST
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing M3U8\n";
+					$link        =~ /(.*live-$final_quality.*)/m;
+					my $link_url = $uri . "/" . $1; 
+					
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" . $final_quality . "000\n" . $link_url;
+					
+					my $response = HTTP::Response->new( 200, 'OK');
+					$response->header('Content-Type' => 'text/html'),
+					$response->content($m3u8);
+					$c->send_response($response);
+					$c->close;
+					
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Playlist sent to client\n";
+				
+				}
+					
+			} else {
+				
+				# DO NOT PROCESS: WRONG CONDITIONS
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Invalid channel request by client\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid channel request");
+				$c->send_response($response);
+				$c->close;
+			
+			}
+			
 		# CONDITION: WORLDWIDE
-		} elsif( defined $channel and defined $quality and defined $platform ) {
+		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "pvr" ) {
 			
 			# LOAD EPG
 			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Requesting current EPG\n";
@@ -428,18 +662,33 @@ sub http_child {
 			# CHECK CONDITIONS
 			if( not defined $rec_id ) {
 				
-				# DO NOT PROCESS: WRONG CHANNEL ID
-				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Invalid channel ID\n";
+				# DO NOT PROCESS: WRONG CHANNEL ID / NO EPG AVAILABLE
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Invalid channel ID / no EPG available\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid Channel ID");
+				$c->send_response($response);
+				$c->close;
 				
 			} elsif( $platform ne "hls" and  $platform ne "hls5" ) {
 				
 				# DO NOT PROCESS: WRONG PLATFORM
 				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Invalid platform\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid platform");
+				$c->send_response($response);
+				$c->close;
 			
 			} elsif( $quality ne "8000" and $quality ne "4999" and $quality ne "5000" and $quality ne "3000" and $quality ne "1500" ) {
 				
 				# DO NOT PROCESS: WRONG QUALITY
 				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Invalid bandwidth\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid bandwidth");
+				$c->send_response($response);
+				$c->close;
 			
 			} elsif( defined $channel ) {
 			
@@ -482,7 +731,7 @@ sub http_child {
 				
 				$uri     =~ s/(.*)(\/.*.m3u8.*)/$1/g;
 				$ch      =~ s/.*\.tv\///g;
-				$ch      =~ s/http:\/\/zattoo-hls5-live.akamaized.net\///g;
+				$ch      =~ s/https:\/\/zattoo-hls5-pvr.akamaized.net\///g;
 				$ch      =~ s/\/.*//g;
 				
 				# REMOVE RECORDING
@@ -526,7 +775,7 @@ sub http_child {
 					
 					# EDIT SEGMENTS URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing segments file\n";
-					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=8000000\n" . "http://$hostip:8080/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=8000&platform=hls\&zkey=$keyval";
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=8000000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=8000&platform=hls\&zkey=$keyval";
 					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
@@ -565,7 +814,7 @@ sub http_child {
 					
 					# EDIT SEGMENTS URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing segments file\n";
-					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2999000\n" . "http://$hostip:8080/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=2999&platform=hls\&zkey=$keyval";
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2999000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=2999&platform=hls\&zkey=$keyval";
 					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
@@ -604,7 +853,7 @@ sub http_child {
 					
 					# EDIT SEGMENTS URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing segments file\n";
-					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=5000000\n" . "http://$hostip:8080/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=5000&platform=hls\&zkey=$keyval";
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=5000000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=5000&platform=hls\&zkey=$keyval";
 					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
@@ -643,7 +892,7 @@ sub http_child {
 					
 					# EDIT SEGMENTS URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing segments file\n";
-					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2999000\n" . "http://$hostip:8080/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=2999&platform=hls\&zkey=$keyval";
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2999000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=2999&platform=hls\&zkey=$keyval";
 					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
@@ -682,7 +931,7 @@ sub http_child {
 					
 					# EDIT SEGMENTS URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing segments file\n";
-					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=4999000\n" . "http://$hostip:8080/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=4999&platform=hls\&zkey=$keyval";
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=4999000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=4999&platform=hls\&zkey=$keyval";
 					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
@@ -721,7 +970,7 @@ sub http_child {
 					
 					# EDIT SEGMENTS URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing segments file\n";
-					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2999000\n" . "http://$hostip:8080/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=2999&platform=hls\&zkey=$keyval";
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2999000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=2999&platform=hls\&zkey=$keyval";
 					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
@@ -760,7 +1009,7 @@ sub http_child {
 					
 					# EDIT SEGMENTS URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing segments file\n";
-					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=3000000\n" . "http://$hostip:8080/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=3000&platform=hls\&zkey=$keyval";
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=3000000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=3000&platform=hls\&zkey=$keyval";
 					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
@@ -799,7 +1048,7 @@ sub http_child {
 					
 					# EDIT SEGMENTS URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing segments file\n";
-					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2999000\n" . "http://$hostip:8080/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=2999&platform=hls\&zkey=$keyval";
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2999000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=2999&platform=hls\&zkey=$keyval";
 					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
@@ -838,7 +1087,7 @@ sub http_child {
 					
 					# EDIT SEGMENTS URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing segments file\n";
-					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1500000\n" . "http://$hostip:8080/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=1500&platform=hls\&zkey=$keyval";
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1500000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=1500&platform=hls\&zkey=$keyval";
 					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
@@ -854,7 +1103,7 @@ sub http_child {
 				
 				# DO NOT PROCESS: WRONG CONDITIONS
 				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Invalid channel request by client\n";
-				my $response = HTTP::Response->new( 404, 'NOT FOUND');
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
 				$response->header('Content-Type' => 'text/html'),
 				$response->content("API ERROR: Invalid channel request");
 				$c->send_response($response);
@@ -880,7 +1129,7 @@ sub http_child {
 		} else {
 			
 			print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Invalid request by client\n";
-			my $response = HTTP::Response->new( 404, 'NOT FOUND');
+			my $response = HTTP::Response->new( 400, 'BAD REQUEST');
 			$response->header('Content-Type' => 'text/html'),
 			$response->content("API ERROR: Invalid request by client\n");
 			$c->send_response($response);
