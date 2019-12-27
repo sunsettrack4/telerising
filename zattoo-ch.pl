@@ -16,13 +16,13 @@
 #  You should have received a copy of the GNU General Public License
 #  along with zattoo_tvh. If not, see <http://www.gnu.org/licenses/>.
 
-# #######################################
-# TELERISING API FOR ZATTOO SWITZERLAND #
-# #######################################
+# ###########################
+# TELERISING API FOR ZATTOO #
+# ###########################
 
-print "\n=============================================\n";
-print   " TELERISING API v0.1.3 // ZATTOO SWITZERLAND \n";
-print   "=============================================\n\n";
+print "\n=================================\n";
+print   " TELERISING API v0.1.4 // ZATTOO \n";
+print   "=================================\n\n";
 
 use strict;
 use warnings;
@@ -135,6 +135,16 @@ if( @products ) {
 	}
 }
 
+if( $country eq "CH" ) {
+	print "--- COUNTRY: SWITZERLAND ---\n\n";
+} elsif( $country eq "DE" ) {
+	print "--- COUNTRY: GERMANY ---\n\n";
+} else {
+	print "--- COUNTRY: OTHER ---\n\n";
+	print "ERROR: No valid service country detected, Zattoo services can't be used.\n\n";
+	exit;
+}
+
 if( defined $product_code ) {
 	if( $product_code eq "PREMIUM" ) {
 		print "--- YOUR ACCOUNT TYPE: PREMIUM ---\n\n"
@@ -146,21 +156,33 @@ if( defined $product_code ) {
 	$product_code = "FREE";
 }
 
-if( $country ne "CH" ) {
-	print "ERROR: Your German Zattoo account is not supported by this API.\n\n";
-	exit;
-}
-
 my $tv_mode;
 
-if( $alias ne "CH" and $product_code ne "FREE" ) {
-	print "NOTICE: No Swiss IP address detected, using PVR mode for Live TV.\n\n";
-	$tv_mode = "pvr";
-} elsif ( $alias ne "CH" and $product_code eq "FREE" ) {
-	print "ERROR: No Swiss IP address detected, Zattoo services can't be used.\n\n";
-	exit;
-} else {
-	$tv_mode = "live";
+if( $country eq "CH" ) {
+	
+	if( $alias ne "CH" and $product_code ne "FREE" ) {
+		print "NOTICE: No Swiss IP address detected, using PVR mode for Live TV.\n\n";
+		$tv_mode = "pvr";
+	} elsif ( $alias ne "CH" and $product_code eq "FREE" ) {
+		print "ERROR: No Swiss IP address detected, Zattoo services can't be used.\n\n";
+		exit;
+	} else {
+		$tv_mode = "live";
+	}
+	
+} elsif( $country eq "DE" ) {
+	
+	if( $alias ne "DE" and $product_code eq "FREE" ) {
+		print "ERROR: No German IP address detected, Zattoo services can't be used.\n\n";
+		exit;
+	} elsif( $alias ne "DE" and $product_code =~ /PREMIUM|ULTIMATE/ ) {
+		if( $alias =~ /BE|FR|IT|LU|NL|DK|IE|UK|GR|PT|ES|FI|AT|SE|EE|LT|LV|MT|PL|SK|SI|CZ|HU|CY|BG|RO|HR|GP|GY|MQ|RE|YT|AN/ ) {
+			print "NOTICE: No German IP address detected, Zattoo services can be used within the EU.\n\n";
+			$tv_mode = "live";
+		}
+	} else {
+		$tv_mode = "live";
+	}
 }
 
 
@@ -322,21 +344,32 @@ sub http_child {
 						my $chid    = $channels->{'cid'};
 						my $alias   = $channels->{'display_alias'};
 						
-						# IF FIRST CHANNEL TYPE IS "AVAILABLE", PRINT M3U LINE
-						if( defined $channels->{'qualities'}[0]{'availability'} ) {
+						if( defined $channels->{'qualities'} ) {
+							
+							# IF FIRST CHANNEL TYPE IS "AVAILABLE", PRINT M3U LINE
 							if( $channels->{'qualities'}[0]{'availability'} eq "available" ) {
 								my $logo = $channels->{'qualities'}[0]{'logo_black_84'};
 								$logo =~ s/84x48.png/210x120.png/g;
 								
 								$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $chid . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 								$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+							
+							# IF 1st CHANNEL TYPE IS "SUBSCRIBABLE" + 2nd CHANNEL TYPE IS "AVAILABLE", PRINT M3U LINE
+							} elsif( defined $channels->{'qualities'}[1]{'availability'} ) {
+								if( $channels->{'qualities'}[1]{'availability'} eq "available" ) {
+									my $logo = $channels->{'qualities'}[1]{'logo_black_84'};
+									$logo =~ s/84x48.png/210x120.png/g;
+									
+									$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $chid . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
+									$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+								}
 							}
 						}
 					}
 				}
 				
 				my $response = HTTP::Response->new( 200, 'OK');
-				$response->header('Content-Type' => 'application/vnd.apple.mpegurl'),
+				$response->header('Content-Type' => 'text'),
 				$response->content($ch_m3u);
 				$c->send_response($response);
 				$c->close;
@@ -826,14 +859,14 @@ sub http_child {
 							$final_framerate  = "50";
 						} elsif( $quality eq "4999" ) {
 							$final_quality_video = "4799";
-							$final_bandwidth  = "5000000";
-							$final_resolution = "1280x720";
-							$final_framerate  = "50";
-						} elsif( $quality eq "5000" ) {
-							$final_quality_video = "4800";
 							$final_bandwidth  = "4999000";
 							$final_resolution = "1920x1080";
 							$final_framerate  = "25";
+						} elsif( $quality eq "5000" ) {
+							$final_quality_video = "4800";
+							$final_bandwidth  = "5000000";
+							$final_resolution = "1280x720";
+							$final_framerate  = "50";
 						} elsif( $quality eq "3000" ) {
 							$final_quality_video = "2800";
 							$final_bandwidth  = "3000000";
@@ -1098,14 +1131,14 @@ sub http_child {
 						$final_framerate  = "50";
 					} elsif( $quality eq "4999" ) {
 						$final_quality_video = "4799";
-						$final_bandwidth  = "5000000";
-						$final_resolution = "1280x720";
-						$final_framerate  = "50";
-					} elsif( $quality eq "5000" ) {
-						$final_quality_video = "4800";
 						$final_bandwidth  = "4999000";
 						$final_resolution = "1920x1080";
 						$final_framerate  = "25";
+					} elsif( $quality eq "5000" ) {
+						$final_quality_video = "4800";
+						$final_bandwidth  = "5000000";
+						$final_resolution = "1280x720";
+						$final_framerate  = "50";
 					} elsif( $quality eq "3000" ) {
 						$final_quality_video = "2800";
 						$final_bandwidth  = "3000000";
