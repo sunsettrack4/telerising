@@ -21,7 +21,7 @@
 # ###########################
 
 print "\n=================================\n";
-print   " TELERISING API v0.1.4 // ZATTOO \n";
+print   " TELERISING API v0.1.5 // ZATTOO \n";
 print   "=================================\n\n";
 
 use strict;
@@ -266,6 +266,7 @@ sub http_child {
 		# GET CHANNEL NAME
 		my $channel = $params->{'channel'};
 		my $zch     = $params->{'ch'};
+		my $rec_ch  = $params->{'recording'};
 		
 		# SET QUALITY
 		my $quality = $params->{'bw'};
@@ -277,7 +278,9 @@ sub http_child {
 		my $platform = $params->{'platform'};
 		
 		# SET FILE
-		my $filename = $params->{'file'};
+		my $filename  = $params->{'file'};
+		my $favorites = $params->{'favorites'};
+		my $ffmpeg    = $params->{'ffmpeg'};
 		
 		# SET KEYVALUE
 		my $zkeyval  = $params->{'zkey'};
@@ -308,29 +311,44 @@ sub http_child {
 				$quality eq "8000" or 
 				$quality eq "5000" or 
 				$quality eq "4999" or 
-				$quality eq "3000" or 
+				$quality eq "3000" or
+				$quality eq "2999" or
 				$quality eq "1500" and 
 				
 				$platform eq "hls" or 
 				$platform eq "hls5" ) {
 					
-				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Loading channels.m3u... \n";
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Loading channel data\n";
 				
+				# URLs
 				my $channel_url   = "https://zattoo.com/zapi/v2/cached/channels/$powerid?details=False";
-				my $channel_agent = LWP::UserAgent->new;
+				my $fav_url       = "https://zattoo.com/zapi/channels/favorites";
+				
+				# COOKIE
 				my $cookie_jar    = HTTP::Cookies->new;
 				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/','zattoo.com',443);
+				
+				# CHANNEL M3U REQUEST
+				my $channel_agent = LWP::UserAgent->new;
 				$channel_agent->cookie_jar($cookie_jar);
-
 				my $channel_request  = HTTP::Request::Common::GET($channel_url);
 				my $channel_response = $channel_agent->request($channel_request);
 				
+				# FAVORITES REQUEST
+				my $fav_agent = LWP::UserAgent->new;
+				$fav_agent->cookie_jar($cookie_jar);
+				my $fav_request  = HTTP::Request::Common::GET($fav_url);
+				my $fav_response = $fav_agent->request($fav_request);
+				
 				# READ JSON
-				my $ch_file = decode_json($channel_response->content);
+				my $ch_file  = decode_json($channel_response->content);
+				my $fav_file = decode_json($fav_response->content);
 
 				# SET UP VALUES
 				my @ch_groups = @{ $ch_file->{'channel_groups'} };
+				my @fav_items = @{ $fav_file->{'favorites'} };
 				
+				# CREATE CHANNELS M3U
 				my $ch_m3u   = "#EXTM3U\n";
 				
 				foreach my $ch_groups ( @ch_groups ) {
@@ -344,24 +362,75 @@ sub http_child {
 						my $chid    = $channels->{'cid'};
 						my $alias   = $channels->{'display_alias'};
 						
-						if( defined $channels->{'qualities'} ) {
+						if( defined $favorites ) {
 							
-							# IF FIRST CHANNEL TYPE IS "AVAILABLE", PRINT M3U LINE
-							if( $channels->{'qualities'}[0]{'availability'} eq "available" ) {
-								my $logo = $channels->{'qualities'}[0]{'logo_black_84'};
-								$logo =~ s/84x48.png/210x120.png/g;
+							foreach my $fav_items ( @fav_items ) {
 								
-								$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $chid . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
-								$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+								if( $channels->{'cid'} eq $fav_items ) {
+									if( defined $channels->{'qualities'} ) {
+										
+										# IF FIRST CHANNEL TYPE IS "AVAILABLE", PRINT M3U LINE
+										if( $channels->{'qualities'}[0]{'availability'} eq "available" ) {
+											my $logo = $channels->{'qualities'}[0]{'logo_black_84'};
+											$logo =~ s/84x48.png/210x120.png/g;
+											
+											$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $chid . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
+											
+											if( defined $ffmpeg ) {
+												$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -c copy -f mpegts pipe:1\n";
+											} else {
+												$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+											}
+										
+										# IF 1st CHANNEL TYPE IS "SUBSCRIBABLE" + 2nd CHANNEL TYPE IS "AVAILABLE", PRINT M3U LINE
+										} elsif( defined $channels->{'qualities'}[1]{'availability'} ) {
+											if( $channels->{'qualities'}[1]{'availability'} eq "available" ) {
+												my $logo = $channels->{'qualities'}[1]{'logo_black_84'};
+												$logo =~ s/84x48.png/210x120.png/g;
+												
+												$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $chid . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
+												
+												if( defined $ffmpeg ) {
+													$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -c copy -f mpegts pipe:1\n";
+												} else {
+													$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+												}
+											}
+										}
+									}
+								}
+							}
 							
-							# IF 1st CHANNEL TYPE IS "SUBSCRIBABLE" + 2nd CHANNEL TYPE IS "AVAILABLE", PRINT M3U LINE
-							} elsif( defined $channels->{'qualities'}[1]{'availability'} ) {
-								if( $channels->{'qualities'}[1]{'availability'} eq "available" ) {
-									my $logo = $channels->{'qualities'}[1]{'logo_black_84'};
+						} else {
+							if( defined $channels->{'qualities'} ) {
+								
+								# IF FIRST CHANNEL TYPE IS "AVAILABLE", PRINT M3U LINE
+								if( $channels->{'qualities'}[0]{'availability'} eq "available" ) {
+									my $logo = $channels->{'qualities'}[0]{'logo_black_84'};
 									$logo =~ s/84x48.png/210x120.png/g;
 									
 									$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $chid . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
-									$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+									
+									if( defined $ffmpeg ) {
+										$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -c copy -f mpegts pipe:1\n";
+									} else {
+										$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+									}
+								
+								# IF 1st CHANNEL TYPE IS "SUBSCRIBABLE" + 2nd CHANNEL TYPE IS "AVAILABLE", PRINT M3U LINE
+								} elsif( defined $channels->{'qualities'}[1]{'availability'} ) {
+									if( $channels->{'qualities'}[1]{'availability'} eq "available" ) {
+										my $logo = $channels->{'qualities'}[1]{'logo_black_84'};
+										$logo =~ s/84x48.png/210x120.png/g;
+										
+										$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $chid . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
+										
+										if( defined $ffmpeg ) {
+											$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -c copy -f mpegts pipe:1\n";
+										} else {
+											$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+										}		
+									}
 								}
 							}
 						}
@@ -720,7 +789,7 @@ sub http_child {
 			if( $platform ne "hls" and  $platform ne "hls5" ) {
 				
 				# DO NOT PROCESS: WRONG PLATFORM
-				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Invalid platform\n";
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Invalid platform\n";
 				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
 				$response->header('Content-Type' => 'text/html'),
 				$response->content("API ERROR: Invalid platform");
@@ -730,7 +799,7 @@ sub http_child {
 			} elsif( $quality ne "8000" and $quality ne "4999" and $quality ne "5000" and $quality ne "3000" and $quality ne "2999" and $quality ne "1500" ) {
 				
 				# DO NOT PROCESS: WRONG QUALITY
-				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Invalid bandwidth\n";
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Invalid bandwidth\n";
 				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
 				$response->header('Content-Type' => 'text/html'),
 				$response->content("API ERROR: Invalid bandwidth");
@@ -740,7 +809,7 @@ sub http_child {
 			} elsif( defined $channel ) {
 				
 				# REQUEST PLAYLIST URL
-				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Loading Live URL\n";
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Loading Live URL\n";
 				my $live_url = "https://zattoo.com/zapi/watch/live/$channel";
 				
 				my $live_agent = LWP::UserAgent->new;
@@ -754,7 +823,7 @@ sub http_child {
 				if( $live_response->is_error ) {
 					
 					# DO NOT PROCESS: WRONG CHANNEL ID
-					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Invalid Channel ID\n";
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Invalid Channel ID\n";
 					my $response = HTTP::Response->new( 400, 'BAD REQUEST');
 					$response->header('Content-Type' => 'text/html'),
 					$response->content("API ERROR: Invalid Channel ID");
@@ -767,7 +836,7 @@ sub http_child {
 					my $liveview_url = $liveview_file->{'stream'}->{'url'};
 				
 					# LOAD PLAYLIST URL
-					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Loading M3U8\n";
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Loading M3U8\n";
 					my $livestream_agent  = LWP::UserAgent->new;
 					
 					my $livestream_request  = HTTP::Request::Common::GET($liveview_url);
@@ -826,7 +895,7 @@ sub http_child {
 						}
 						
 						# EDIT PLAYLIST
-						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing M3U8\n";
+						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Editing M3U8\n";
 						$link        =~ /(.*live-$final_quality.*)/m;
 						my $link_url = $uri . "/" . $1; 
 						
@@ -838,7 +907,7 @@ sub http_child {
 						$c->send_response($response);
 						$c->close;
 						
-						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Playlist sent to client\n";
+						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Playlist sent to client\n";
 					
 					} elsif( $platform eq "hls5" ) {
 						
@@ -902,7 +971,7 @@ sub http_child {
 						}
 						
 						# EDIT PLAYLIST
-						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing M3U8\n";
+						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Editing M3U8\n";
 						$link        =~ /(.*)($final_quality_audio.*?z32=)(.*)"/m;
 						my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $3;
 						my $link_audio_url = $uri . "/" . $2 . $3;
@@ -915,7 +984,7 @@ sub http_child {
 						$c->send_response($response);
 						$c->close;
 						
-						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Playlist sent to client\n";
+						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Playlist sent to client\n";
 						
 					}
 				
@@ -927,7 +996,7 @@ sub http_child {
 		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "pvr" ) {
 			
 			# LOAD EPG
-			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Requesting current EPG\n";
+			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Requesting current EPG\n";
 			my $start   = time();
 			my $stop    = time()+1;
 			my $epg_url = "https://zattoo.com/zapi/v3/cached/$powerid/guide?start=$start&end=$stop";
@@ -948,7 +1017,7 @@ sub http_child {
 			if( not defined $rec_id ) {
 				
 				# DO NOT PROCESS: WRONG CHANNEL ID / NO EPG AVAILABLE
-				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Invalid channel ID / no EPG available\n";
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Invalid channel ID / no EPG available\n";
 				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
 				$response->header('Content-Type' => 'text/html'),
 				$response->content("API ERROR: Invalid Channel ID");
@@ -958,7 +1027,7 @@ sub http_child {
 			} elsif( $platform ne "hls" and  $platform ne "hls5" ) {
 				
 				# DO NOT PROCESS: WRONG PLATFORM
-				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Invalid platform\n";
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Invalid platform\n";
 				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
 				$response->header('Content-Type' => 'text/html'),
 				$response->content("API ERROR: Invalid platform");
@@ -968,7 +1037,7 @@ sub http_child {
 			} elsif( $quality ne "8000" and $quality ne "4999" and $quality ne "5000" and $quality ne "3000" and $quality ne "2999" and $quality ne "1500" ) {
 				
 				# DO NOT PROCESS: WRONG QUALITY
-				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Invalid bandwidth\n";
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Invalid bandwidth\n";
 				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
 				$response->header('Content-Type' => 'text/html'),
 				$response->content("API ERROR: Invalid bandwidth");
@@ -978,7 +1047,7 @@ sub http_child {
 			} elsif( defined $channel ) {
 			
 				# ADD RECORDING
-				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Add recording\n";
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Add recording\n";
 				my $recadd_url = "https://zattoo.com/zapi/playlist/program";
 				
 				my $recadd_agent  = LWP::UserAgent->new;
@@ -991,7 +1060,7 @@ sub http_child {
 				my $rec_fid  = $rec_file->{"recording"}->{"id"};
 				
 				# LOAD RECORDING URL
-				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Loading PVR URL\n";
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Loading PVR URL\n";
 				my $recview_url = "https://zattoo.com/zapi/watch/recording/$rec_fid";
 				
 				my $recview_agent  = LWP::UserAgent->new;
@@ -1004,7 +1073,7 @@ sub http_child {
 				my $rec_url = $recview_file->{'stream'}->{'url'};
 				
 				# LOAD PLAYLIST URL
-				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Loading M3U8\n";
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Loading M3U8\n";
 				my $recurl_agent  = LWP::UserAgent->new;
 				
 				my $recurl_request  = HTTP::Request::Common::GET($rec_url);
@@ -1020,7 +1089,7 @@ sub http_child {
 				$ch      =~ s/\/.*//g;
 				
 				# REMOVE RECORDING
-				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Remove recording\n";
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Remove recording\n";
 				my $recdel_url = "https://zattoo.com/zapi/playlist/remove";
 				
 				my $recdel_agent  = LWP::UserAgent->new;
@@ -1028,7 +1097,7 @@ sub http_child {
 
 				my $recdel_request  = HTTP::Request::Common::POST($recdel_url, ['recording_id' => $rec_fid ]);
 				my $recdel_response = $recdel_agent->request($recdel_request);
-				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Recording removed\n";
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Recording removed\n";
 				
 				# EDIT PLAYLIST URL
 				if( $platform eq "hls" ) {
@@ -1038,7 +1107,7 @@ sub http_child {
 					#
 					
 					# GET SEGMENTS URL
-					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Loading segments file\n";
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Loading segments file\n";
 					
 					my $final_quality;
 					
@@ -1098,7 +1167,7 @@ sub http_child {
 					$keyval  =~ s/.*z32=//g;
 					
 					# EDIT SEGMENTS URL
-					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing segments file\n";
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Editing segments file\n";
 					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=$final_quality" . "000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality\&platform=hls\&zkey=$keyval";
 					
 					my $response = HTTP::Response->new( 200, 'OK');
@@ -1107,7 +1176,7 @@ sub http_child {
 					$c->send_response($response);
 					$c->close;
 					
-					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Playlist sent to client\n";
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Playlist sent to client\n";
 				
 				} elsif( $platform eq "hls5" ) {
 					
@@ -1116,7 +1185,7 @@ sub http_child {
 					#
 					
 					# GET SEGMENTS URL
-					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Loading segments file\n";
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Loading segments file\n";
 					
 					# SET FINAL VIDEO PARAMS
 					my $final_quality_video;
@@ -1174,7 +1243,7 @@ sub http_child {
 					}
 					
 					# EDIT PLAYLIST
-					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing M3U8\n";
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Editing M3U8\n";
 					
 					$uri         =~ s/.*\.tv\///g;
 					$uri         =~ s/.*\.net\///g;
@@ -1190,7 +1259,7 @@ sub http_child {
 					my $keyval   = $4;
 					
 					# EDIT SEGMENTS URL
-					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Editing segments file\n";
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Editing segments file\n";
 					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$audio\&platform=hls5\&zkey=$keyval\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\nhttp://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&platform=hls5\&zkey=$keyval";
 					
 					my $response = HTTP::Response->new( 200, 'OK');
@@ -1199,11 +1268,215 @@ sub http_child {
 					$c->send_response($response);
 					$c->close;
 					
-					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "$channel | $quality | $platform - Playlist sent to client\n";	
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Playlist sent to client\n";	
 					
 				}			
 					
 			}			
+		
+		#
+		# PROVIDE RECORDING M3U8
+		#
+		
+		} elsif( defined $rec_ch and defined $quality and defined $platform ) {
+			
+			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Loading PVR URL\n";
+			my $recchview_url = "https://zattoo.com/zapi/watch/recording/$rec_ch";
+				
+			my $recchview_agent  = LWP::UserAgent->new;
+			$recchview_agent->cookie_jar($cookie_jar);
+
+			my $recchview_request  = HTTP::Request::Common::POST($recchview_url, ['stream_type' => $platform, 'enable_eac3' => 'true', 'https_watch_urls' => 'True', 'cast_stream_type' => $platform ]);
+			my $recchview_response = $recchview_agent->request($recchview_request);
+			
+			# CHECK CONDITIONS
+			if( $recchview_response->is_error ) {
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Invalid recording ID\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid recording ID");
+				$c->send_response($response);
+				$c->close;
+			
+			} elsif( $platform ne "hls" and  $platform ne "hls5" ) {
+				
+				# DO NOT PROCESS: WRONG PLATFORM
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Invalid platform\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid platform");
+				$c->send_response($response);
+				$c->close;
+			
+			} elsif( $quality ne "8000" and $quality ne "4999" and $quality ne "5000" and $quality ne "3000" and $quality ne "2999" and $quality ne "1500" ) {
+				
+				# DO NOT PROCESS: WRONG QUALITY
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Invalid bandwidth\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid bandwidth");
+				$c->send_response($response);
+				$c->close;
+			
+			} elsif( defined $rec_ch ) {
+				
+				my $recchview_file = decode_json( $recchview_response->content );
+				my $recch_url = $recchview_file->{'stream'}->{'url'};
+					
+				# LOAD PLAYLIST URL
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Loading M3U8\n";
+				my $recchurl_agent  = LWP::UserAgent->new;
+					
+				my $recchurl_request  = HTTP::Request::Common::GET($recch_url);
+				my $recchurl_response = $recchurl_agent->request($recchurl_request);
+				
+				my $link  = $recchurl_response->content;
+				my $link2 = $recchurl_response->content;
+				my $uri   = $recchurl_response->base;
+							
+				$uri      =~ s/(.*)(\/.*.m3u8.*)/$1/g;
+				
+				if( $platform eq "hls" ) {
+				
+					#
+					# HLS
+					#
+					
+					# SET FINAL QUALITY
+					my $final_quality;
+							
+					if( $link =~ m/BANDWIDTH=8000000/ and $quality eq "8000" ) {
+						$final_quality = "8000";
+					} elsif( $link =~ m/BANDWIDTH=5000000/ and $quality eq "8000" ) {
+						$final_quality = "5000";
+					} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "8000" ) {
+						$final_quality = "2999";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "8000" ) {
+						$final_quality = "1500";
+					} elsif( $link =~ m/BANDWIDTH=4999000/ and $quality eq "4999" ) {
+						$final_quality = "4999";
+					} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "4999" ) {
+						$final_quality = "2999";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "4999" ) {
+						$final_quality = "1500";
+					} elsif( $link =~ m/BANDWIDTH=5000000/ and $quality eq "5000" ) {
+						$final_quality = "5000";
+					} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "5000" ) {
+						$final_quality = "2999";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "5000" ) {
+						$final_quality = "1500";
+					} elsif( $link =~ m/BANDWIDTH=3000000/ and $quality eq "3000" ) {
+						$final_quality = "3000";
+					} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "3000" ) {
+						$final_quality = "2999";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "3000" ) {
+						$final_quality = "1500";
+					} elsif( $link =~ m/BANDWIDTH=3000000/ and $quality eq "2999" ) {
+						$final_quality = "3000";
+					} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "2999" ) {
+						$final_quality = "2999";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "2999" ) {
+						$final_quality = "1500";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "1500" ) {
+						$final_quality = "1500";
+					}
+							
+					# EDIT PLAYLIST
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Editing M3U8\n";
+					$link        =~ /(.*$final_quality\.m3u8.*)/m;
+					my $link_url = $uri . "/" . $1; 
+							
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" . $final_quality . "000\n" . $link_url;
+							
+					my $response = HTTP::Response->new( 200, 'OK');
+					$response->header('Content-Type' => 'text/html'),
+					$response->content($m3u8);
+					$c->send_response($response);
+					$c->close;
+							
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Playlist sent to client\n";
+				
+				} elsif( $platform eq "hls5" ) {
+						
+					#
+					# HLS5
+					#
+						
+					# SET FINAL VIDEO PARAMS
+					my $final_quality_video;
+					my $final_bandwidth;
+					my $final_resolution;
+					my $final_framerate;
+						
+					if( $quality eq "8000" ) {
+						$final_quality_video = "7800";
+						$final_bandwidth  = "8000000";
+						$final_resolution = "1920x1080";
+						$final_framerate  = "50";
+					} elsif( $quality eq "4999" ) {
+						$final_quality_video = "4799";
+						$final_bandwidth  = "4999000";
+						$final_resolution = "1920x1080";
+						$final_framerate  = "25";
+					} elsif( $quality eq "5000" ) {
+						$final_quality_video = "4800";
+						$final_bandwidth  = "5000000";
+						$final_resolution = "1280x720";
+						$final_framerate  = "50";
+					} elsif( $quality eq "3000" ) {
+						$final_quality_video = "2800";
+						$final_bandwidth  = "3000000";
+						$final_resolution = "1280x720";
+						$final_framerate  = "25";
+					} elsif( $quality eq "2999" ) {
+						$final_quality_video = "2799";
+						$final_bandwidth  = "2999000";
+						$final_resolution = "1024x576";
+						$final_framerate  = "50";
+					} elsif( $quality eq "1500" ) {
+						$final_quality_video = "1300";
+						$final_bandwidth  = "1500000";
+						$final_resolution = "768x432";
+						$final_framerate  = "25";
+					}
+						
+					# SET FINAL AUDIO CODEC
+					my $final_quality_audio;
+					my $final_codec;
+						
+					if( defined $dolby ) {
+						if( $link =~ m/t_track_audio_bw_256_num_1/ and $dolby eq "true" ) {
+							$final_quality_audio = "t_track_audio_bw_256_num_1";
+							$final_codec = "avc1.4d4020,ec-3";
+						} else {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+						}
+					} else {
+						$final_quality_audio = "t_track_audio_bw_128_num_0";
+						$final_codec = "avc1.4d4020,mp4a.40.2";
+					}
+						
+					# EDIT PLAYLIST
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Editing M3U8\n";
+					$link        =~ /(.*)($final_quality_audio.*?z32=)(.*)"/m;
+					my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $3;
+					my $link_audio_url = $uri . "/" . $2 . $3;
+						
+					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+					
+					my $response = HTTP::Response->new( 200, 'OK');
+					$response->header('Content-Type' => 'text/html'),
+					$response->content($m3u8);
+					$c->send_response($response);
+					$c->close;
+						
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Playlist sent to client\n";
+					
+				}
+			
+			}
+
 		
 		#
 		# INVALID REQUEST
