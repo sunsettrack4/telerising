@@ -21,7 +21,7 @@
 # ###########################
 
 print "\n=================================\n";
-print   " TELERISING API v0.1.5 // ZATTOO \n";
+print   " TELERISING API v0.1.6 // ZATTOO \n";
 print   "=================================\n\n";
 
 use strict;
@@ -45,6 +45,7 @@ use Time::Piece;
 use Sys::HostIP;
 use JSON;
 use POSIX qw/ WNOHANG /;
+use POSIX qw( strftime );
 
 
 #
@@ -304,25 +305,18 @@ sub http_child {
 		
 		if( defined $filename and defined $quality and defined $platform ) {
 			
-			# GET CHANNEL LIST
-			if( 
-				$filename eq "channels.m3u" and 
-				
-				$quality eq "8000" or 
-				$quality eq "5000" or 
-				$quality eq "4999" or 
-				$quality eq "3000" or
-				$quality eq "2999" or
-				$quality eq "1500" and 
-				
-				$platform eq "hls" or 
-				$platform eq "hls5" ) {
+			#
+			# CHANNEL LIST
+			#
+			
+			if( $filename eq "channels.m3u" and $quality =~ /8000|5000|4999|3000|2999|1500/ and $platform =~ /hls|hls5/ ) {
 					
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Loading channel data\n";
 				
 				# URLs
 				my $channel_url   = "https://zattoo.com/zapi/v2/cached/channels/$powerid?details=False";
 				my $fav_url       = "https://zattoo.com/zapi/channels/favorites";
+				my $rytec_url     = "https://raw.githubusercontent.com/sunsettrack4/config_files/master/ztt_channels.json";
 				
 				# COOKIE
 				my $cookie_jar    = HTTP::Cookies->new;
@@ -340,13 +334,20 @@ sub http_child {
 				my $fav_request  = HTTP::Request::Common::GET($fav_url);
 				my $fav_response = $fav_agent->request($fav_request);
 				
+				# RYTEC REQUEST
+				my $rytec_agent    = LWP::UserAgent->new;
+				my $rytec_request  = HTTP::Request::Common::GET($rytec_url);
+				my $rytec_response = $rytec_agent->request($rytec_request);
+				
 				# READ JSON
-				my $ch_file  = decode_json($channel_response->content);
-				my $fav_file = decode_json($fav_response->content);
+				my $ch_file    = decode_json($channel_response->content);
+				my $fav_file   = decode_json($fav_response->content);
+				my $rytec_file = decode_json($rytec_response->content);
 
 				# SET UP VALUES
 				my @ch_groups = @{ $ch_file->{'channel_groups'} };
 				my @fav_items = @{ $fav_file->{'favorites'} };
+				my $rytec_id  = $rytec_file->{'channels'}->{$country};
 				
 				# CREATE CHANNELS M3U
 				my $ch_m3u   = "#EXTM3U\n";
@@ -374,10 +375,14 @@ sub http_child {
 											my $logo = $channels->{'qualities'}[0]{'logo_black_84'};
 											$logo =~ s/84x48.png/210x120.png/g;
 											
-											$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $chid . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
+											$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $rytec_id->{$name} . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 											
-											if( defined $ffmpeg ) {
+											if( defined $ffmpeg and defined $dolby ) {
+												$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -c copy -f mpegts pipe:1\n";
+											} elsif( defined $ffmpeg ) {
 												$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -c copy -f mpegts pipe:1\n";
+											} elsif( defined $dolby ) {
+												$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
 											} else {
 												$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
 											}
@@ -388,10 +393,14 @@ sub http_child {
 												my $logo = $channels->{'qualities'}[1]{'logo_black_84'};
 												$logo =~ s/84x48.png/210x120.png/g;
 												
-												$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $chid . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
+												$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $rytec_id->{$name} . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 												
-												if( defined $ffmpeg ) {
+												if( defined $ffmpeg and defined $dolby ) {
+												$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -c copy -f mpegts pipe:1\n";
+												} elsif( defined $ffmpeg ) {
 													$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -c copy -f mpegts pipe:1\n";
+												} elsif( defined $dolby ) {
+													$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
 												} else {
 													$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
 												}
@@ -409,10 +418,14 @@ sub http_child {
 									my $logo = $channels->{'qualities'}[0]{'logo_black_84'};
 									$logo =~ s/84x48.png/210x120.png/g;
 									
-									$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $chid . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
+									$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $rytec_id->{$name} . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 									
-									if( defined $ffmpeg ) {
+									if( defined $ffmpeg and defined $dolby ) {
+										$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -c copy -f mpegts pipe:1\n";
+									} elsif( defined $ffmpeg ) {
 										$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -c copy -f mpegts pipe:1\n";
+									} elsif( defined $dolby ) {
+										$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
 									} else {
 										$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
 									}
@@ -423,13 +436,17 @@ sub http_child {
 										my $logo = $channels->{'qualities'}[1]{'logo_black_84'};
 										$logo =~ s/84x48.png/210x120.png/g;
 										
-										$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $chid . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
+										$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $rytec_id->{$name} . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 										
-										if( defined $ffmpeg ) {
+										if( defined $ffmpeg and defined $dolby ) {
+												$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -c copy -f mpegts pipe:1\n";
+										} elsif( defined $ffmpeg ) {
 											$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -c copy -f mpegts pipe:1\n";
+										} elsif( defined $dolby ) {
+											$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
 										} else {
 											$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
-										}		
+										}	
 									}
 								}
 							}
@@ -444,7 +461,106 @@ sub http_child {
 				$c->close;
 				
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Channel list sent to client - params: bandwidth=$quality, platform=$platform\n";
+			
+			
+			#
+			# RECORDING LIST
+			#
+			
+			} elsif( $filename eq "recordings.m3u" and $quality =~ /8000|5000|4999|3000|2999|1500/ and $platform =~ /hls|hls5/ ) {
+					
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Loading recordings data\n";
+				
+				# URLs
+				my $channel_url   = "https://zattoo.com/zapi/v2/cached/channels/$powerid?details=False";
+				my $playlist_url  = "https://zattoo.com/zapi/playlist";
+				
+				# COOKIE
+				my $cookie_jar    = HTTP::Cookies->new;
+				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/','zattoo.com',443);
+				
+				# CHANNEL M3U REQUEST
+				my $channel_agent = LWP::UserAgent->new;
+				$channel_agent->cookie_jar($cookie_jar);
+				my $channel_request  = HTTP::Request::Common::GET($channel_url);
+				my $channel_response = $channel_agent->request($channel_request);
+				
+				# RECORDING M3U REQUEST
+				my $playlist_agent = LWP::UserAgent->new;
+				$playlist_agent->cookie_jar($cookie_jar);
+				my $playlist_request  = HTTP::Request::Common::GET($playlist_url);
+				my $playlist_response = $playlist_agent->request($playlist_request);
+				
+				if( $playlist_response->is_error ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: No permission to use PVR mode\n";
+					
+					my $response = HTTP::Response->new( 403, 'FORBIDDEN');
+					$response->header('Content-Type' => 'text'),
+					$response->content("API ERROR: No permission to use PVR mode");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				}
+				
+				# READ JSON
+				my $ch_file       = decode_json($channel_response->content);
+				my $playlist_file = decode_json($playlist_response->content);
+
+				# SET UP VALUES
+				my @ch_groups = @{ $ch_file->{'channel_groups'} };
+				my @rec_data  = @{ $playlist_file->{'recordings'} };
+				
+				# CREATE CHANNELS M3U
+				my $rec_m3u   = "#EXTM3U\n";
+				
+				foreach my $rec_data ( @rec_data ) {
+					my $name         = $rec_data->{'title'};
+					my $cid          = $rec_data->{'cid'};
+					my $record_start = $rec_data->{'start'};
+					my $image        = $rec_data->{'image_url'};
+					my $rid          = $rec_data->{'id'};
+					
+					$record_start    =~ s/T/ /g;
+					$record_start    =~ s/Z//g;
+					$record_start    =~ s/-/\//g;
+					
+					my $record_time = Time::Piece->strptime($record_start, "%Y/%m/%d %H:%M:%S");
+					my $record_local = strftime("%Y/%m/%d %H:%M:%S", localtime($record_time->epoch) );
+					
+					foreach my $ch_groups ( @ch_groups ) {
+						my @channels = @{ $ch_groups->{'channels'} };
+						
+						foreach my $channels ( @channels ) {
+							my $chid    = $channels->{'cid'};
+							my $cname   = $channels->{'title'};
+							
+							if( $cid eq $chid ) {
+								$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
+								
+								if( defined $ffmpeg and defined $dolby ) {
+									$rec_m3u = $rec_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -c copy -f mpegts pipe:1\n";
+								} elsif( defined $ffmpeg ) {
+									$rec_m3u = $rec_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -c copy -f mpegts pipe:1\n";
+								} elsif( defined $dolby ) {
+									$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
+								} else {
+									$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+								}	
+							}
+						}
+					}
+				}
+				
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'text'),
+				$response->content($rec_m3u);
+				$c->send_response($response);
+				$c->close;
+				
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Recording list sent to client - params: bandwidth=$quality, platform=$platform\n";
+					
 			}
+
 		
 		#
 		# PROVIDE SEGMENTS M3U8
@@ -782,8 +898,11 @@ sub http_child {
 		# PROVIDE CHANNEL M3U8
 		#
 		
-		# CONDITION: HOME
 		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "live" ) {
+			
+			#
+			# CONDITION: HOME
+			#
 			
 			# CHECK CONDITIONS
 			if( $platform ne "hls" and  $platform ne "hls5" ) {
@@ -991,9 +1110,12 @@ sub http_child {
 				}
 			
 			}
-			
-		# CONDITION: WORLDWIDE
+		
 		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "pvr" ) {
+			
+			#
+			# CONDITION: WORLDWIDE
+			#
 			
 			# LOAD EPG
 			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Requesting current EPG\n";
