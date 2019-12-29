@@ -21,7 +21,7 @@
 # ###########################
 
 print "\n=================================\n";
-print   " TELERISING API v0.1.7 // ZATTOO \n";
+print   " TELERISING API v0.1.8 // ZATTOO \n";
 print   "=================================\n\n";
 
 use strict;
@@ -72,6 +72,11 @@ sub login_process {
 			my $userfile     = decode_json($json);
 			my $login_mail   = $userfile->{'login'};
 			my $login_passwd = $userfile->{'password'};
+			
+			if( not defined $userfile ) {
+				print "ERROR: Unable to parse login data\n\n";
+				exit;
+			}
 
 			# GET APPTOKEN
 			my $main_url      = "https://zattoo.com/";
@@ -1137,6 +1142,18 @@ sub http_child {
 				} else {
 					
 					my $liveview_file = decode_json( $live_response->content );
+					
+					if( not defined $liveview_file ) {
+						print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - ERROR: Failed to parse JSON file (LIVE-TV)\n\n";
+								
+						my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+						$response->header('Content-Type' => 'text'),
+						$response->content("API ERROR: Failed to parse JSON file (LIVE-TV)");
+						$c->send_response($response);
+						$c->close;
+						exit;
+					}
+					
 					my $liveview_url = $liveview_file->{'stream'}->{'url'};
 				
 					# LOAD PLAYLIST URL
@@ -1317,8 +1334,8 @@ sub http_child {
 			
 			# LOAD EPG
 			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Requesting current EPG\n";
-			my $start   = time();
-			my $stop    = time()+1;
+			my $start   = time()-24;
+			my $stop    = time()-24;
 			my $epg_url = "https://zattoo.com/zapi/v3/cached/$powerid/guide?start=$start&end=$stop";
 			
 			my $epg_agent = LWP::UserAgent->new;
@@ -1344,11 +1361,11 @@ sub http_child {
 			my $epg_file = decode_json($epg_response->content);
 			
 			if( not defined $epg_file ) {
-				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - ERROR: Failed to parse JSON file\n\n";
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - ERROR: Failed to parse JSON file (EPG)\n\n";
 					
 				my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
 				$response->header('Content-Type' => 'text'),
-				$response->content("API ERROR: Failed to parse JSON file (PVR-TV)");
+				$response->content("API ERROR: Failed to parse JSON file (EPG)");
 				$c->send_response($response);
 				$c->close;
 				exit;
@@ -1414,6 +1431,18 @@ sub http_child {
 				}
 				
 				my $rec_file = decode_json( $recadd_response->content );
+				
+				if( not defined $rec_file ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - ERROR: Failed to parse JSON file (PVR-TV 1)\n\n";
+							
+					my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+					$response->header('Content-Type' => 'text'),
+					$response->content("API ERROR: Failed to parse JSON file (PVR-TV 1)");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				}
+				
 				my $rec_fid  = $rec_file->{"recording"}->{"id"};
 				my $error_response;
 				
@@ -1426,6 +1455,10 @@ sub http_child {
 
 				my $recview_request  = HTTP::Request::Common::POST($recview_url, ['stream_type' => $platform, 'enable_eac3' => 'true', 'https_watch_urls' => 'True', 'cast_stream_type' => $platform ]);
 				my $recview_response = $recview_agent->request($recview_request);
+				
+				my $link;
+				my $uri;
+				my $ch;
 				
 				if( $recview_response->is_error ) {
 					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - ERROR: Failed to load recording URL\n\n";
@@ -1440,6 +1473,18 @@ sub http_child {
 				} else {
 				
 					my $recview_file = decode_json( $recview_response->content );
+					
+					if( not defined $recview_file ) {
+						print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - ERROR: Failed to parse JSON file (PVR-TV 2)\n\n";
+								
+						my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+						$response->header('Content-Type' => 'text'),
+						$response->content("API ERROR: Failed to parse JSON file (PVR-TV 2)");
+						$c->send_response($response);
+						$c->close;
+						exit;
+					}
+					
 					my $rec_url = $recview_file->{'stream'}->{'url'};
 					
 					# LOAD PLAYLIST URL
@@ -1460,9 +1505,9 @@ sub http_child {
 						$error_response = "true";
 					}
 					
-					my $link = $recurl_response->content;
-					my $uri  = $recurl_response->base;
-					my $ch   = $recurl_response->base;
+					$link = $recurl_response->content;
+					$uri  = $recurl_response->base;
+					$ch   = $recurl_response->base;
 					
 					if( defined $link and defined $uri and defined $ch ) {
 						$uri     =~ s/(.*)(\/.*.m3u8.*)/$1/g;
@@ -1471,217 +1516,218 @@ sub http_child {
 						$ch      =~ s/\/.*//g;
 					}
 				
-					# REMOVE RECORDING
-					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Remove recording\n";
-					my $recdel_url = "https://zattoo.com/zapi/playlist/remove";
-					
-					my $recdel_agent  = LWP::UserAgent->new;
-					$recdel_agent->cookie_jar($cookie_jar);
+				}
+				
+				# REMOVE RECORDING
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Remove recording\n";
+				my $recdel_url = "https://zattoo.com/zapi/playlist/remove";
+				
+				my $recdel_agent  = LWP::UserAgent->new;
+				$recdel_agent->cookie_jar($cookie_jar);
 
-					my $recdel_request  = HTTP::Request::Common::POST($recdel_url, ['recording_id' => $rec_fid ]);
-					my $recdel_response = $recdel_agent->request($recdel_request);
+				my $recdel_request  = HTTP::Request::Common::POST($recdel_url, ['recording_id' => $rec_fid ]);
+				my $recdel_response = $recdel_agent->request($recdel_request);
 					
-					if( $recdel_response->is_error ) {
-						print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - ERROR: Failed to remove recording - please delete it manually\n\n";
-						print "RESPONSE:\n\n" . $recdel_response->content . "\n\n";
+				if( $recdel_response->is_error ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - ERROR: Failed to remove recording - please delete it manually\n\n";
+					print "RESPONSE:\n\n" . $recdel_response->content . "\n\n";
+					my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+					$response->header('Content-Type' => 'text/html'),
+					$response->content("API ERROR: Failed to remove recording - please delete it manually");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				}
+					
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Recording removed\n";
+				
+				if( defined $error_response ) {
+					exit;
+				}
+			
+				# EDIT PLAYLIST URL
+				if( $platform eq "hls" ) {
+					
+					#
+					# HLS
+					#
+					
+					# GET SEGMENTS URL
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Loading segments file\n";
+					
+					my $final_quality;
+					
+					if( $link =~ m/BANDWIDTH=8000000/ and $quality eq "8000" ) {
+						$final_quality = "8000";
+					} elsif( $link =~ m/BANDWIDTH=5000000/ and $quality eq "8000" ) {
+						$final_quality = "5000";
+					} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "8000" ) {
+						$final_quality = "2999";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "8000" ) {
+						$final_quality = "1500";
+					} elsif( $link =~ m/BANDWIDTH=4999000/ and $quality eq "4999" ) {
+						$final_quality = "4999";
+					} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "4999" ) {
+						$final_quality = "2999";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "4999" ) {
+						$final_quality = "1500";
+					} elsif( $link =~ m/BANDWIDTH=5000000/ and $quality eq "5000" ) {
+						$final_quality = "5000";
+					} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "5000" ) {
+						$final_quality = "2999";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "5000" ) {
+						$final_quality = "1500";
+					} elsif( $link =~ m/BANDWIDTH=3000000/ and $quality eq "3000" ) {
+						$final_quality = "3000";
+					} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "3000" ) {
+						$final_quality = "2999";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "3000" ) {
+						$final_quality = "1500";
+					} elsif( $link =~ m/BANDWIDTH=3000000/ and $quality eq "2999" ) {
+						$final_quality = "3000";
+					} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "2999" ) {
+						$final_quality = "2999";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "2999" ) {
+						$final_quality = "1500";
+					} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "1500" ) {
+						$final_quality = "1500";
+					}
+						
+					$link        =~ /(.*$final_quality.m3u8.*)/m;
+					my $link_url = $uri . "/" . $1; 
+						
+					# LOAD SEGMENTS URL
+					my $link_agent  = LWP::UserAgent->new;
+					
+					my $link_request  = HTTP::Request::Common::GET($link_url);
+					my $link_response = $link_agent->request($link_request);
+						
+					if( $link_response->is_error ) {
+						print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - ERROR: Failed to load segments M3U8\n\n";
+						print "RESPONSE:\n\n" . $link_response->content . "\n\n";
 						my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
 						$response->header('Content-Type' => 'text/html'),
-						$response->content("API ERROR: Failed to remove recording - please delete it manually");
+						$response->content("API ERROR: Failed to load segments M3U8");
 						$c->send_response($response);
 						$c->close;
 						exit;
 					}
-					
-					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Recording removed\n";
-					
-					if( defined $error_response ) {
-						exit;
-					}
-				
-					# EDIT PLAYLIST URL
-					if( $platform eq "hls" ) {
 						
-						#
-						# HLS
-						#
-						
-						# GET SEGMENTS URL
-						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Loading segments file\n";
-						
-						my $final_quality;
-						
-						if( $link =~ m/BANDWIDTH=8000000/ and $quality eq "8000" ) {
-							$final_quality = "8000";
-						} elsif( $link =~ m/BANDWIDTH=5000000/ and $quality eq "8000" ) {
-							$final_quality = "5000";
-						} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "8000" ) {
-							$final_quality = "2999";
-						} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "8000" ) {
-							$final_quality = "1500";
-						} elsif( $link =~ m/BANDWIDTH=4999000/ and $quality eq "4999" ) {
-							$final_quality = "4999";
-						} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "4999" ) {
-							$final_quality = "2999";
-						} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "4999" ) {
-							$final_quality = "1500";
-						} elsif( $link =~ m/BANDWIDTH=5000000/ and $quality eq "5000" ) {
-							$final_quality = "5000";
-						} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "5000" ) {
-							$final_quality = "2999";
-						} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "5000" ) {
-							$final_quality = "1500";
-						} elsif( $link =~ m/BANDWIDTH=3000000/ and $quality eq "3000" ) {
-							$final_quality = "3000";
-						} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "3000" ) {
-							$final_quality = "2999";
-						} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "3000" ) {
-							$final_quality = "1500";
-						} elsif( $link =~ m/BANDWIDTH=3000000/ and $quality eq "2999" ) {
-							$final_quality = "3000";
-						} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "2999" ) {
-							$final_quality = "2999";
-						} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "2999" ) {
-							$final_quality = "1500";
-						} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "1500" ) {
-							$final_quality = "1500";
-						}
-						
-						$link        =~ /(.*$final_quality.m3u8.*)/m;
-						my $link_url = $uri . "/" . $1; 
-						
-						# LOAD SEGMENTS URL
-						my $link_agent  = LWP::UserAgent->new;
-					
-						my $link_request  = HTTP::Request::Common::GET($link_url);
-						my $link_response = $link_agent->request($link_request);
-						
-						if( $link_response->is_error ) {
-							print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - ERROR: Failed to load segments M3U8\n\n";
-							print "RESPONSE:\n\n" . $link_response->content . "\n\n";
-							my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
-							$response->header('Content-Type' => 'text/html'),
-							$response->content("API ERROR: Failed to load segments M3U8");
-							$c->send_response($response);
-							$c->close;
-							exit;
-						}
-						
-						my $key   = $link_response->content;
-						my $start = $uri;
-						my $end   = $1;
-						$end      =~ s/\/$final_quality.m3u8.*//g;
-						$start    =~ s/(.*\/)(.*)/$2/g;
+					my $key   = $link_response->content;
+					my $start = $uri;
+					my $end   = $1;
+					$end      =~ s/\/$final_quality.m3u8.*//g;
+					$start    =~ s/(.*\/)(.*)/$2/g;
 
-						$key     =~ /($final_quality\/$2.ts\?z32=.*)/m;
-						my $keyval  = $1;
-						$keyval  =~ s/.*z32=//g;
+					$key     =~ /($final_quality\/$2.ts\?z32=.*)/m;
+					my $keyval  = $1;
+					$keyval  =~ s/.*z32=//g;
 						
-						# EDIT SEGMENTS URL
-						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Editing segments file\n";
-						my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=$final_quality" . "000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality\&platform=hls\&zkey=$keyval";
+					# EDIT SEGMENTS URL
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Editing segments file\n";
+					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=$final_quality" . "000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality\&platform=hls\&zkey=$keyval";
 						
-						my $response = HTTP::Response->new( 200, 'OK');
-						$response->header('Content-Type' => 'text/html'),
-						$response->content($m3u8);
-						$c->send_response($response);
-						$c->close;
+					my $response = HTTP::Response->new( 200, 'OK');
+					$response->header('Content-Type' => 'text/html'),
+					$response->content($m3u8);
+					$c->send_response($response);
+					$c->close;
 						
-						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Playlist sent to client\n";
-						exit;
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Playlist sent to client\n";
+					exit;
 					
-					} elsif( $platform eq "hls5" ) {
+				} elsif( $platform eq "hls5" ) {
 						
-						#
-						# HLS5
-						#
+					#
+					# HLS5
+					#
 						
-						# CREATE SEGMENTS M3U8
-						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Creating segments M3U8\n";
+					# CREATE SEGMENTS M3U8
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Creating segments M3U8\n";
 						
-						# SET FINAL VIDEO PARAMS
-						my $final_quality_video;
-						my $final_bandwidth;
-						my $final_resolution;
-						my $final_framerate;
+					# SET FINAL VIDEO PARAMS
+					my $final_quality_video;
+					my $final_bandwidth;
+					my $final_resolution;
+					my $final_framerate;
 							
-						if( $quality eq "8000" ) {
-							$final_quality_video = "7800";
-							$final_bandwidth  = "8000000";
-							$final_resolution = "1920x1080";
-							$final_framerate  = "50";
-						} elsif( $quality eq "4999" ) {
-							$final_quality_video = "4799";
-							$final_bandwidth  = "4999000";
-							$final_resolution = "1920x1080";
-							$final_framerate  = "25";
-						} elsif( $quality eq "5000" ) {
-							$final_quality_video = "4800";
-							$final_bandwidth  = "5000000";
-							$final_resolution = "1280x720";
-							$final_framerate  = "50";
-						} elsif( $quality eq "3000" ) {
-							$final_quality_video = "2800";
-							$final_bandwidth  = "3000000";
-							$final_resolution = "1280x720";
-							$final_framerate  = "25";
-						} elsif( $quality eq "2999" ) {
-							$final_quality_video = "2799";
-							$final_bandwidth  = "2999000";
-							$final_resolution = "1024x576";
-							$final_framerate  = "50";
-						} elsif( $quality eq "1500" ) {
-							$final_quality_video = "1300";
-							$final_bandwidth  = "1500000";
-							$final_resolution = "768x432";
-							$final_framerate  = "25";
-						}
+					if( $quality eq "8000" ) {
+						$final_quality_video = "7800";
+						$final_bandwidth  = "8000000";
+						$final_resolution = "1920x1080";
+						$final_framerate  = "50";
+					} elsif( $quality eq "4999" ) {
+						$final_quality_video = "4799";
+						$final_bandwidth  = "4999000";
+						$final_resolution = "1920x1080";
+						$final_framerate  = "25";
+					} elsif( $quality eq "5000" ) {
+						$final_quality_video = "4800";
+						$final_bandwidth  = "5000000";
+						$final_resolution = "1280x720";
+						$final_framerate  = "50";
+					} elsif( $quality eq "3000" ) {
+						$final_quality_video = "2800";
+						$final_bandwidth  = "3000000";
+						$final_resolution = "1280x720";
+						$final_framerate  = "25";
+					} elsif( $quality eq "2999" ) {
+						$final_quality_video = "2799";
+						$final_bandwidth  = "2999000";
+						$final_resolution = "1024x576";
+						$final_framerate  = "50";
+					} elsif( $quality eq "1500" ) {
+						$final_quality_video = "1300";
+						$final_bandwidth  = "1500000";
+						$final_resolution = "768x432";
+						$final_framerate  = "25";
+					}
 						
-						# SET FINAL AUDIO CODEC
-						my $final_quality_audio;
-						my $final_codec;
-							
-						if( defined $dolby ) {
-							if( $link =~ m/t_track_audio_bw_256_num_1/ and $dolby eq "true" ) {
-								$final_quality_audio = "t_track_audio_bw_256_num_1";
-								$final_codec = "avc1.4d4020,ec-3";
-							} else {
-								$final_quality_audio = "t_track_audio_bw_128_num_0";
-								$final_codec = "avc1.4d4020,mp4a.40.2";
-							}
+					# SET FINAL AUDIO CODEC
+					my $final_quality_audio;
+					my $final_codec;
+						
+					if( defined $dolby ) {
+						if( $link =~ m/t_track_audio_bw_256_num_1/ and $dolby eq "true" ) {
+							$final_quality_audio = "t_track_audio_bw_256_num_1";
+							$final_codec = "avc1.4d4020,ec-3";
 						} else {
 							$final_quality_audio = "t_track_audio_bw_128_num_0";
 							$final_codec = "avc1.4d4020,mp4a.40.2";
 						}
-						
-						$uri         =~ s/.*\.tv\///g;
-						$uri         =~ s/.*\.net\///g;
-						$uri         =~ /(.*)\/(.*)\/(.*)/m;
-						
-						my $ch          = $1;
-						my $start       = $2;
-						my $end         = $3;
-						
-						$link        =~ /(.*)($final_quality_audio.*)(\?z32=)(.*)"/m;
-						
-						my $audio    = $2;
-						my $keyval   = $4;
-						
-						my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$audio\&platform=hls5\&zkey=$keyval\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\nhttp://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&platform=hls5\&zkey=$keyval";
-						
-						my $response = HTTP::Response->new( 200, 'OK');
-						$response->header('Content-Type' => 'text/html'),
-						$response->content($m3u8);
-						$c->send_response($response);
-						$c->close;
-						
-						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Playlist sent to client\n";
-						exit;
-					
+					} else {
+						$final_quality_audio = "t_track_audio_bw_128_num_0";
+						$final_codec = "avc1.4d4020,mp4a.40.2";
 					}
+						
+					$uri         =~ s/.*\.tv\///g;
+					$uri         =~ s/.*\.net\///g;
+					$uri         =~ /(.*)\/(.*)\/(.*)/m;
+						
+					my $ch          = $1;
+					my $start       = $2;
+					my $end         = $3;
+						
+					$link        =~ /(.*)($final_quality_audio.*)(\?z32=)(.*)"/m;
+						
+					my $audio    = $2;
+					my $keyval   = $4;
+						
+					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$audio\&platform=hls5\&zkey=$keyval\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\nhttp://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&platform=hls5\&zkey=$keyval";
+						
+					my $response = HTTP::Response->new( 200, 'OK');
+					$response->header('Content-Type' => 'text/html'),
+					$response->content($m3u8);
+					$c->send_response($response);
+					$c->close;
+						
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Playlist sent to client\n";
+					exit;
 					
-				}			
+				}
 					
 			}			
+					
 		
 		#
 		# PROVIDE RECORDING M3U8
@@ -1735,6 +1781,18 @@ sub http_child {
 			} elsif( defined $rec_ch ) {
 				
 				my $recchview_file = decode_json( $recchview_response->content );
+				
+				if( not defined $recchview_file ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $channel | $quality | $platform - ERROR: Failed to parse JSON file (REC)\n\n";
+							
+					my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+					$response->header('Content-Type' => 'text'),
+					$response->content("API ERROR: Failed to parse JSON file (REC)");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				}
+				
 				my $recch_url = $recchview_file->{'stream'}->{'url'};
 					
 				# LOAD PLAYLIST URL
