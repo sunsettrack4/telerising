@@ -21,7 +21,7 @@
 # ###########################
 
 print "\n=================================\n";
-print   " TELERISING API v0.1.8 // ZATTOO \n";
+print   " TELERISING API v0.1.9 // ZATTOO \n";
 print   "=================================\n\n";
 
 use strict;
@@ -70,16 +70,25 @@ sub login_process {
 
 			# SET LOGIN PARAMS
 			my $userfile     = decode_json($json);
-			my $login_mail   = $userfile->{'login'};
-			my $login_passwd = $userfile->{'password'};
 			
 			if( not defined $userfile ) {
 				print "ERROR: Unable to parse login data\n\n";
 				exit;
 			}
+			
+			my $provider     = $userfile->{'provider'};
+			my $login_mail   = $userfile->{'login'};
+			my $login_passwd = $userfile->{'password'};
+			
+			if( not defined $provider or not defined $login_mail or not defined $login_passwd ) {
+				print "ERROR: Unable to retrieve complete login data\n\n";
+				exit;
+			} elsif( $provider eq "www.zattoo.com" ) {
+				$provider = "zattoo.com";
+			}
 
 			# GET APPTOKEN
-			my $main_url      = "https://zattoo.com/";
+			my $main_url      = "https://$provider/";
 			my $main_agent    = LWP::UserAgent->new;
 
 			my $main_request  = HTTP::Request::Common::GET($main_url);
@@ -112,7 +121,7 @@ sub login_process {
 			$apptoken        =~ s/(.*window.appToken = ')(.*)(';.*)/$2/g;
 
 			# GET SESSION ID
-			my $session_url    = "https://zattoo.com/zapi/session/hello";
+			my $session_url    = "https://$provider/zapi/session/hello";
 			my $session_agent  = LWP::UserAgent->new;
 
 			my $session_request  = HTTP::Request::Common::POST($session_url, ['client_app_token' => uri_escape($apptoken), 'uuid' => uri_escape('d7512e98-38a0-4f01-b820-5a5cf98141fe'), 'lang' => uri_escape('en'), 'format' => uri_escape('json')]);
@@ -127,10 +136,10 @@ sub login_process {
 			}
 
 			# GET LOGIN COOKIE
-			my $login_url    = "https://zattoo.com/zapi/v2/account/login";
+			my $login_url    = "https://$provider/zapi/v2/account/login";
 			my $login_agent   = LWP::UserAgent->new;
 			my $cookie_jar    = HTTP::Cookies->new;
-			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/','zattoo.com',443);
+			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
 			$login_agent->cookie_jar($cookie_jar);
 
 			my $login_request  = HTTP::Request::Common::POST($login_url, ['login' => $login_mail, 'password' => $login_passwd ]);
@@ -176,10 +185,12 @@ sub login_process {
 				print "--- COUNTRY: SWITZERLAND ---\n\n";
 			} elsif( $country eq "DE" ) {
 				print "--- COUNTRY: GERMANY ---\n\n";
-			} else {
+			} elsif( $provider eq "zattoo.com" ) {
 				print "--- COUNTRY: OTHER ---\n\n";
 				print "ERROR: No valid service country detected, Zattoo services can't be used.\n\n";
 				exit;
+			} else {
+				print "--- COUNTRY: OTHER ---\n\n";
 			}
 
 			if( defined $product_code ) {
@@ -188,14 +199,16 @@ sub login_process {
 				} elsif( $product_code eq "ULTIMATE" ) {
 					print "--- YOUR ACCOUNT TYPE: ULTIMATE ---\n\n"
 				}
-			} else {
+			} elsif( $provider eq "zattoo.com" ) {
 				print "--- YOUR ACCOUNT TYPE: FREE ---\n\n";
 				$product_code = "FREE";
+			} else {
+				print "--- YOUR ACCOUNT TYPE: RESELLER ---\n\n";
 			}
 
 			my $tv_mode;
 
-			if( $country eq "CH" ) {
+			if( $country eq "CH" and $provider eq "zattoo.com" ) {
 				
 				if( $alias ne "CH" and $product_code ne "FREE" ) {
 					print "NOTICE: No Swiss IP address detected, using PVR mode for Live TV.\n\n";
@@ -207,7 +220,7 @@ sub login_process {
 					$tv_mode = "live";
 				}
 				
-			} elsif( $country eq "DE" ) {
+			} elsif( $country eq "DE" and $provider eq "zattoo.com" ) {
 				
 				if( $alias ne "DE" and $product_code eq "FREE" ) {
 					print "ERROR: No German IP address detected, Zattoo services can't be used.\n\n";
@@ -220,11 +233,14 @@ sub login_process {
 				} else {
 					$tv_mode = "live";
 				}
+			
+			} else {
+				$tv_mode = "live";
 			}
 			
 			# CREATE FILE
 			open my $session_file, ">", "session.json" or die "UNABLE TO CREATE SESSION FILE!\n\n";
-			print $session_file "{\"session_token\":\"$session_token\",\"powerid\":\"$powerid\",\"tv_mode\":\"$tv_mode\",\"country\":\"$country\"}";
+			print $session_file "{\"provider\":\"$provider\",\"session_token\":\"$session_token\",\"powerid\":\"$powerid\",\"tv_mode\":\"$tv_mode\",\"country\":\"$country\"}";
 			close $session_file;
 			
 			sleep 86400;
@@ -378,6 +394,7 @@ sub http_child {
 		}
 		
 		# SET SESSION PARAMS
+		my $provider      = $session_data->{"provider"};
 		my $session_token = $session_data->{"session_token"};
 		my $country       = $session_data->{"country"};
 		my $tv_mode       = $session_data->{"tv_mode"};
@@ -394,17 +411,28 @@ sub http_child {
 			#
 			
 			if( $filename eq "channels.m3u" and $quality =~ /8000|5000|4999|3000|2999|1500/ and $platform =~ /hls|hls5/ ) {
+				
+				# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
+				if( open my $fh, "<", "channels_m3u:$quality:$platform:cached" ) {
+					my $response = HTTP::Response->new( 200, 'OK');
+					$response->header('Content-Type' => 'text/html'),
+					$c->send_file_response("channels_m3u:$quality:$platform:cached");
+					$c->close;
+						
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Channel list resent to client - params: bandwidth=$quality, platform=$platform\n";
+					exit;
+				}	
 					
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Loading channel data\n";
 				
 				# URLs
-				my $channel_url   = "https://zattoo.com/zapi/v2/cached/channels/$powerid?details=False";
-				my $fav_url       = "https://zattoo.com/zapi/channels/favorites";
+				my $channel_url   = "https://$provider/zapi/v2/cached/channels/$powerid?details=False";
+				my $fav_url       = "https://$provider/zapi/channels/favorites";
 				my $rytec_url     = "https://raw.githubusercontent.com/sunsettrack4/config_files/master/ztt_channels.json";
 				
 				# COOKIE
 				my $cookie_jar    = HTTP::Cookies->new;
-				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/','zattoo.com',443);
+				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
 				
 				# CHANNEL M3U REQUEST
 				my $channel_agent = LWP::UserAgent->new;
@@ -508,9 +536,9 @@ sub http_child {
 											$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $rytec_id->{$name} . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 											
 											if( defined $ffmpeg and defined $dolby ) {
-												$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -c copy -f mpegts pipe:1\n";
+												$ch_m3u = $ch_m3u .  "pipe:///usr/bin/ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
 											} elsif( defined $ffmpeg ) {
-												$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -c copy -f mpegts pipe:1\n";
+												$ch_m3u = $ch_m3u .  "pipe:///usr/bin/ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
 											} elsif( defined $dolby ) {
 												$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
 											} else {
@@ -526,9 +554,9 @@ sub http_child {
 												$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $rytec_id->{$name} . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 												
 												if( defined $ffmpeg and defined $dolby ) {
-												$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -c copy -f mpegts pipe:1\n";
+												$ch_m3u = $ch_m3u .  "pipe:///usr/bin/ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
 												} elsif( defined $ffmpeg ) {
-													$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -c copy -f mpegts pipe:1\n";
+													$ch_m3u = $ch_m3u .  "pipe:///usr/bin/ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
 												} elsif( defined $dolby ) {
 													$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
 												} else {
@@ -559,9 +587,9 @@ sub http_child {
 									$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $rytec_id->{$name} . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 									
 									if( defined $ffmpeg and defined $dolby ) {
-										$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -c copy -f mpegts pipe:1\n";
+										$ch_m3u = $ch_m3u .  "pipe:///usr/bin/ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
 									} elsif( defined $ffmpeg ) {
-										$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -c copy -f mpegts pipe:1\n";
+										$ch_m3u = $ch_m3u .  "pipe:///usr/bin/ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
 									} elsif( defined $dolby ) {
 										$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
 									} else {
@@ -577,9 +605,9 @@ sub http_child {
 										$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $rytec_id->{$name} . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 										
 										if( defined $ffmpeg and defined $dolby ) {
-												$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -c copy -f mpegts pipe:1\n";
+												$ch_m3u = $ch_m3u .  "pipe:///usr/bin/ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
 										} elsif( defined $ffmpeg ) {
-											$ch_m3u = $ch_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -c copy -f mpegts pipe:1\n";
+											$ch_m3u = $ch_m3u .  "pipe:///usr/bin/ffmpeg -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
 										} elsif( defined $dolby ) {
 											$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
 										} else {
@@ -598,7 +626,16 @@ sub http_child {
 				$c->send_response($response);
 				$c->close;
 				
+				# CACHE PLAYLIST
+				open my $fh, ">", "channels_m3u:$quality:$platform:cached";
+				print $fh "$ch_m3u";
+				close $fh;
+				
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Channel list sent to client - params: bandwidth=$quality, platform=$platform\n";
+				
+				# REMOVE CACHED PLAYLIST
+				sleep 1;
+				unlink "channels_m3u:$quality:$platform:cached";
 				exit;
 			
 			
@@ -607,16 +644,27 @@ sub http_child {
 			#
 			
 			} elsif( $filename eq "recordings.m3u" and $quality =~ /8000|5000|4999|3000|2999|1500/ and $platform =~ /hls|hls5/ ) {
+				
+				# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
+				if( open my $fh, "<", "recordings_m3u:$quality:$platform:cached" ) {
+					my $response = HTTP::Response->new( 200, 'OK');
+					$response->header('Content-Type' => 'text/html'),
+					$c->send_file_response("recordings_m3u:$quality:$platform:cached");
+					$c->close;
+						
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Recording list resent to client - params: bandwidth=$quality, platform=$platform\n";
+					exit;
+				}	
 					
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Loading recordings data\n";
 				
 				# URLs
-				my $channel_url   = "https://zattoo.com/zapi/v2/cached/channels/$powerid?details=False";
-				my $playlist_url  = "https://zattoo.com/zapi/playlist";
+				my $channel_url   = "https://$provider/zapi/v2/cached/channels/$powerid?details=False";
+				my $playlist_url  = "https://$provider/zapi/playlist";
 				
 				# COOKIE
 				my $cookie_jar    = HTTP::Cookies->new;
-				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/','zattoo.com',443);
+				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
 				
 				# RECORDING M3U REQUEST
 				my $channel_agent = LWP::UserAgent->new;
@@ -711,9 +759,9 @@ sub http_child {
 								$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
 								
 								if( defined $ffmpeg and defined $dolby ) {
-									$rec_m3u = $rec_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -c copy -f mpegts pipe:1\n";
+									$rec_m3u = $rec_m3u .  "pipe:///usr/bin/ffmpeg -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
 								} elsif( defined $ffmpeg ) {
-									$rec_m3u = $rec_m3u .  "pipe://ffmpeg -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -c copy -f mpegts pipe:1\n";
+									$rec_m3u = $rec_m3u .  "pipe:///usr/bin/ffmpeg -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
 								} elsif( defined $dolby ) {
 									$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
 								} else {
@@ -724,6 +772,11 @@ sub http_child {
 					}
 				}
 				
+				# CACHE PLAYLIST
+				open my $fh, ">", "recordings_m3u:$quality:$platform:cached";
+				print $fh "$rec_m3u";
+				close $fh;
+				
 				my $response = HTTP::Response->new( 200, 'OK');
 				$response->header('Content-Type' => 'text'),
 				$response->content($rec_m3u);
@@ -731,6 +784,10 @@ sub http_child {
 				$c->close;
 				
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Recording list sent to client - params: bandwidth=$quality, platform=$platform\n";
+				
+				# REMOVE CACHED PLAYLIST
+				sleep 1;
+				unlink "recordings_m3u:$quality:$platform:cached";
 				exit;
 					
 			}
@@ -1090,6 +1147,17 @@ sub http_child {
 			# CONDITION: HOME
 			#
 			
+			# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
+			if( open my $fh, "<", "$channel:$quality:$platform:cached" ) {
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'text/html'),
+				$c->send_file_response("$channel:$quality:$platform:cached");
+				$c->close;
+					
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Playlist resent to client\n";
+				exit;
+			}	
+			
 			# CHECK CONDITIONS
 			if( $platform ne "hls" and  $platform ne "hls5" ) {
 				
@@ -1117,11 +1185,11 @@ sub http_child {
 				
 				# REQUEST PLAYLIST URL
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Loading Live URL\n";
-				my $live_url = "https://zattoo.com/zapi/watch/live/$channel";
+				my $live_url = "https://$provider/zapi/watch/live/$channel";
 				
 				my $live_agent = LWP::UserAgent->new;
 				my $cookie_jar    = HTTP::Cookies->new;
-				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/','zattoo.com',443);
+				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
 				$live_agent->cookie_jar($cookie_jar);
 
 				my $live_request  = HTTP::Request::Common::POST($live_url, [ 'stream_type' => $platform, 'https_watch_urls' => 'True', 'enable_eac3' => 'true', 'timeshift' => '10800', 'cast_stream_type' => $platform ]);
@@ -1233,6 +1301,11 @@ sub http_child {
 						
 						my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" . $final_quality . "000\n" . $link_url;
 						
+						# CACHE PLAYLIST
+						open my $fh, ">", "$channel:$quality:$platform:cached";
+						print $fh "$m3u8";
+						close $fh;
+						
 						my $response = HTTP::Response->new( 200, 'OK');
 						$response->header('Content-Type' => 'text/html'),
 						$response->content($m3u8);
@@ -1240,6 +1313,10 @@ sub http_child {
 						$c->close;
 						
 						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Playlist sent to client\n";
+						
+						# REMOVE CACHED PLAYLIST
+						sleep 1;
+						unlink "$channel:$quality:$platform:cached";
 						exit;
 					
 					} elsif( $platform eq "hls5" ) {
@@ -1311,6 +1388,11 @@ sub http_child {
 						
 						my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
 						
+						# CACHE PLAYLIST
+						open my $fh, ">", "$channel:$quality:$platform:cached";
+						print $fh "$m3u8";
+						close $fh;
+						
 						my $response = HTTP::Response->new( 200, 'OK');
 						$response->header('Content-Type' => 'text/html'),
 						$response->content($m3u8);
@@ -1318,6 +1400,10 @@ sub http_child {
 						$c->close;
 						
 						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Playlist sent to client\n";
+						
+						# REMOVE CACHED PLAYLIST
+						sleep 1;
+						unlink "$channel:$quality:$platform:cached";
 						exit;
 						
 					}
@@ -1332,15 +1418,26 @@ sub http_child {
 			# CONDITION: WORLDWIDE
 			#
 			
+			# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
+			if( open my $fh, "<", "$channel:$quality:$platform:cached" ) {
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'text/html'),
+				$c->send_file_response("$channel:$quality:$platform:cached");
+				$c->close;
+					
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Playlist resent to client\n";
+				exit;
+			}	
+			
 			# LOAD EPG
 			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Requesting current EPG\n";
-			my $start   = time()-24;
-			my $stop    = time()-24;
-			my $epg_url = "https://zattoo.com/zapi/v3/cached/$powerid/guide?start=$start&end=$stop";
+			my $start   = time()-300;
+			my $stop    = time()-300;
+			my $epg_url = "https://$provider/zapi/v3/cached/$powerid/guide?start=$start&end=$stop";
 			
 			my $epg_agent = LWP::UserAgent->new;
 			my $cookie_jar    = HTTP::Cookies->new;
-			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/','zattoo.com',443);
+			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
 			$epg_agent->cookie_jar($cookie_jar);
 
 			my $epg_request  = HTTP::Request::Common::GET($epg_url);
@@ -1411,7 +1508,7 @@ sub http_child {
 			
 				# ADD RECORDING
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Add recording\n";
-				my $recadd_url = "https://zattoo.com/zapi/playlist/program";
+				my $recadd_url = "https://$provider/zapi/playlist/program";
 				
 				my $recadd_agent  = LWP::UserAgent->new;
 				$recadd_agent->cookie_jar($cookie_jar);
@@ -1448,7 +1545,7 @@ sub http_child {
 				
 				# LOAD RECORDING URL
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Loading PVR URL\n";
-				my $recview_url = "https://zattoo.com/zapi/watch/recording/$rec_fid";
+				my $recview_url = "https://$provider/zapi/watch/recording/$rec_fid";
 				
 				my $recview_agent  = LWP::UserAgent->new;
 				$recview_agent->cookie_jar($cookie_jar);
@@ -1520,7 +1617,7 @@ sub http_child {
 				
 				# REMOVE RECORDING
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Remove recording\n";
-				my $recdel_url = "https://zattoo.com/zapi/playlist/remove";
+				my $recdel_url = "https://$provider/zapi/playlist/remove";
 				
 				my $recdel_agent  = LWP::UserAgent->new;
 				$recdel_agent->cookie_jar($cookie_jar);
@@ -1626,7 +1723,12 @@ sub http_child {
 					# EDIT SEGMENTS URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Editing segments file\n";
 					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=$final_quality" . "000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality\&platform=hls\&zkey=$keyval";
-						
+					
+					# CACHE PLAYLIST
+					open my $fh, ">", "$channel:$quality:$platform:cached";
+					print $fh "$m3u8";
+					close $fh;
+					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
 					$response->content($m3u8);
@@ -1634,6 +1736,10 @@ sub http_child {
 					$c->close;
 						
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Playlist sent to client\n";
+					
+					# REMOVE CACHED PLAYLIST
+					sleep 1;
+					unlink "$channel:$quality:$platform:cached";
 					exit;
 					
 				} elsif( $platform eq "hls5" ) {
@@ -1714,7 +1820,12 @@ sub http_child {
 					my $keyval   = $4;
 						
 					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$audio\&platform=hls5\&zkey=$keyval\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\nhttp://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&platform=hls5\&zkey=$keyval";
-						
+					
+					# CACHE PLAYLIST
+					open my $fh, ">", "$channel:$quality:$platform:cached";
+					print $fh "$m3u8";
+					close $fh;
+					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
 					$response->content($m3u8);
@@ -1722,6 +1833,10 @@ sub http_child {
 					$c->close;
 						
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Playlist sent to client\n";
+					
+					# REMOVE CACHED PLAYLIST
+					sleep 1;
+					unlink "$channel:$quality:$platform:cached";
 					exit;
 					
 				}
@@ -1735,12 +1850,23 @@ sub http_child {
 		
 		} elsif( defined $rec_ch and defined $quality and defined $platform ) {
 			
+			# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
+			if( open my $fh, "<", "$channel:$quality:$platform:cached" ) {
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'text/html'),
+				$c->send_file_response("$rec_ch:$quality:$platform:cached");
+				$c->close;
+					
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Playlist resent to client\n";
+				exit;
+			}	
+			
 			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Loading PVR URL\n";
-			my $recchview_url = "https://zattoo.com/zapi/watch/recording/$rec_ch";
+			my $recchview_url = "https://$provider/zapi/watch/recording/$rec_ch";
 				
 			my $recchview_agent  = LWP::UserAgent->new;
 			my $cookie_jar    = HTTP::Cookies->new;
-			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/','zattoo.com',443);
+			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
 			$recchview_agent->cookie_jar($cookie_jar);
 
 			my $recchview_request  = HTTP::Request::Common::POST($recchview_url, ['stream_type' => $platform, 'enable_eac3' => 'true', 'https_watch_urls' => 'True', 'cast_stream_type' => $platform ]);
@@ -1870,7 +1996,12 @@ sub http_child {
 					my $link_url = $uri . "/" . $1; 
 							
 					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" . $final_quality . "000\n" . $link_url;
-							
+					
+					# CACHE PLAYLIST
+					open my $fh, ">", "$rec_ch:$quality:$platform:cached";
+					print $fh "$m3u8";
+					close $fh;
+					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
 					$response->content($m3u8);
@@ -1878,6 +2009,10 @@ sub http_child {
 					$c->close;
 							
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Playlist sent to client\n";
+					
+					# REMOVE CACHED PLAYLIST
+					sleep 1;
+					unlink "$rec_ch:$quality:$platform:cached";
 					exit;
 				
 				} elsif( $platform eq "hls5" ) {
@@ -1949,6 +2084,11 @@ sub http_child {
 						
 					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
 					
+					# CACHE PLAYLIST
+					open my $fh, ">", "$rec_ch:$quality:$platform:cached";
+					print $fh "$m3u8";
+					close $fh;
+					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
 					$response->content($m3u8);
@@ -1956,6 +2096,10 @@ sub http_child {
 					$c->close;
 						
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Playlist sent to client\n";
+					
+					# REMOVE CACHED PLAYLIST
+					sleep 1;
+					unlink "$rec_ch:$quality:$platform:cached";
 					exit;
 					
 				}

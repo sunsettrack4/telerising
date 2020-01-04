@@ -82,6 +82,7 @@ perl zattoo.pl & disown
 #### Login file to be placed in script folder
 ```
 {
+  "provider": "zattoo.com",
   "login": "firstname.lastname@example.com",
   "password": "mypassword123"
 }
