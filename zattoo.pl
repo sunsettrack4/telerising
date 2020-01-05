@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-#      Copyright (C) 2019 Jan-Luca Neumann
+#      Copyright (C) 2019-2020 Jan-Luca Neumann
 #      https://github.com/sunsettrack4/telerising/
 #
 #  This Program is free software; you can redistribute it and/or modify
@@ -21,7 +21,7 @@
 # ###########################
 
 print "\n=================================\n";
-print   " TELERISING API v0.1.9 // ZATTOO \n";
+print   " TELERISING API v0.2.0 // ZATTOO \n";
 print   "=================================\n\n";
 
 use strict;
@@ -73,6 +73,9 @@ sub login_process {
 			
 			if( not defined $userfile ) {
 				print "ERROR: Unable to parse login data\n\n";
+				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				print $error_file "ERROR: Unable to parse login data";
+				close $error_file;
 				exit;
 			}
 			
@@ -82,10 +85,23 @@ sub login_process {
 			
 			if( not defined $provider or not defined $login_mail or not defined $login_passwd ) {
 				print "ERROR: Unable to retrieve complete login data\n\n";
+				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				print $error_file "ERROR: Unable to retrieve complete login data";
+				close $error_file;
 				exit;
-			} elsif( $provider eq "www.zattoo.com" ) {
-				$provider = "zattoo.com";
 			}
+			
+			if( $provider eq "www.zattoo.com" ) {
+				$provider = "zattoo.com";
+			} elsif( $provider =~ /zattoo.com|www.1und1.tv|www.netplus.tv|mobiltv.quickline.com|tvplus.m-net.de|player.waly.tv|www.meinewelt.cc|www.bbv-tv.net|www.vtxtv.ch|www.myvisiontv.ch|iptv.glattvision.ch|www.saktv.ch|nettv.netcologne.de|tvonline.ewe.de|www.quantum-tv.com|tv.salt.ch|tvonline.swb-gruppe.de/) {
+				print "";
+			} else {
+				print "ERROR: Provider is not supported. Please recheck the domain.\n\n";
+				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				print $error_file "ERROR: Provider is not supported. Please recheck the domain.";
+				close $error_file;
+				exit;
+			}	
 
 			# GET APPTOKEN
 			my $main_url      = "https://$provider/";
@@ -97,6 +113,9 @@ sub login_process {
 			if( $main_response->is_error ) {
 				print "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
 				print "RESPONSE:\n\n" . $main_response->content . "\n\n";
+				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)";
+				close $error_file;
 				exit;
 			}
 
@@ -105,6 +124,9 @@ sub login_process {
 
 			if( not defined $main_content) {
 				print "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)\n\n";
+				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)";
+				close $error_file;
 				exit;
 			}
 
@@ -113,12 +135,24 @@ sub login_process {
 
 			if( not defined $zattootree) {
 				print "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)\n\n";
+				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)";
+				close $error_file;
 				exit;
 			}
 
 			my @scriptvalues = $zattootree->look_down('type' => 'text/javascript');
 			my $apptoken     = $scriptvalues[0]->as_HTML;
-			$apptoken        =~ s/(.*window.appToken = ')(.*)(';.*)/$2/g;
+			
+			if( defined $apptoken ) {
+				$apptoken        =~ s/(.*window.appToken = ')(.*)(';.*)/$2/g;
+			} else {
+				print "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)\n\n";
+				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)";
+				close $error_file;
+				exit;
+			}
 
 			# GET SESSION ID
 			my $session_url    = "https://$provider/zapi/session/hello";
@@ -127,11 +161,23 @@ sub login_process {
 			my $session_request  = HTTP::Request::Common::POST($session_url, ['client_app_token' => uri_escape($apptoken), 'uuid' => uri_escape('d7512e98-38a0-4f01-b820-5a5cf98141fe'), 'lang' => uri_escape('en'), 'format' => uri_escape('json')]);
 			my $session_response = $session_agent->request($session_request);
 			my $session_token    = $session_response->header('Set-cookie');
-			$session_token       =~ s/(.*)(beaker.session.id=)(.*)(; Path.*)/$3/g;
+			
+			if( defined $session_token ) {
+				$session_token       =~ s/(.*)(beaker.session.id=)(.*)(; Path.*)/$3/g;
+			} else {
+				print "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)\n\n";
+				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)";
+				close $error_file;
+				exit;
+			}
 
 			if( $session_response->is_error ) {
 				print "LOGIN FAILED! (invalid response)\n\n";
 				print "RESPONSE:\n\n" . $session_response->content . "\n\n";
+				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				print $error_file "LOGIN FAILED! (invalid response)";
+				close $error_file;
 				exit;
 			}
 
@@ -148,6 +194,9 @@ sub login_process {
 			if( $login_response->is_error ) {
 				print "LOGIN FAILED! (please re-check login data)\n\n";
 				print "RESPONSE:\n\n" . $login_response->content . "\n\n";
+				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				print $error_file "LOGIN FAILED! (please re-check login data)";
+				close $error_file;
 				exit;
 			} else {
 				print "LOGIN OK!\n\n";
@@ -161,6 +210,9 @@ sub login_process {
 
 			if( not defined $analyse_login ) {
 				print "ERROR: Unable to parse user data\n\n";
+				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				print $error_file "ERROR: Unable to parse user data";
+				close $error_file;
 				exit;
 			}
 
@@ -188,6 +240,9 @@ sub login_process {
 			} elsif( $provider eq "zattoo.com" ) {
 				print "--- COUNTRY: OTHER ---\n\n";
 				print "ERROR: No valid service country detected, Zattoo services can't be used.\n\n";
+				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				print $error_file "ERROR: No valid service country detected, Zattoo services can't be used.";
+				close $error_file;
 				exit;
 			} else {
 				print "--- COUNTRY: OTHER ---\n\n";
@@ -195,9 +250,9 @@ sub login_process {
 
 			if( defined $product_code ) {
 				if( $product_code eq "PREMIUM" ) {
-					print "--- YOUR ACCOUNT TYPE: PREMIUM ---\n\n"
+					print "--- YOUR ACCOUNT TYPE: PREMIUM ---\n\n";
 				} elsif( $product_code eq "ULTIMATE" ) {
-					print "--- YOUR ACCOUNT TYPE: ULTIMATE ---\n\n"
+					print "--- YOUR ACCOUNT TYPE: ULTIMATE ---\n\n";
 				}
 			} elsif( $provider eq "zattoo.com" ) {
 				print "--- YOUR ACCOUNT TYPE: FREE ---\n\n";
@@ -215,6 +270,9 @@ sub login_process {
 					$tv_mode = "pvr";
 				} elsif ( $alias ne "CH" and $product_code eq "FREE" ) {
 					print "ERROR: No Swiss IP address detected, Zattoo services can't be used.\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "ERROR: No Swiss IP address detected, Zattoo services can't be used.";
+					close $error_file;
 					exit;
 				} else {
 					$tv_mode = "live";
@@ -224,6 +282,9 @@ sub login_process {
 				
 				if( $alias ne "DE" and $product_code eq "FREE" ) {
 					print "ERROR: No German IP address detected, Zattoo services can't be used.\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "ERROR: No German IP address detected, Zattoo services can't be used.";
+					close $error_file;
 					exit;
 				} elsif( $alias ne "DE" and $product_code =~ /PREMIUM|ULTIMATE/ ) {
 					if( $alias =~ /BE|FR|IT|LU|NL|DK|IE|UK|GR|PT|ES|FI|AT|SE|EE|LT|LV|MT|PL|SK|SI|CZ|HU|CY|BG|RO|HR|GP|GY|MQ|RE|YT|AN/ ) {
@@ -256,6 +317,11 @@ unlink "session.json";
 login_process();
 
 until( -e "session.json" ) {
+	if( open my $fh, "<", "error.txt" ) {
+		unlink "error.txt";
+		print "API PROCESS STOPPED!\n\n";
+		exit;
+	}
 	sleep 1;
 }
 

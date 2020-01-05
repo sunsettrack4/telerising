@@ -11,6 +11,7 @@ This API provides channel playlists to playback streams on all compatible device
 * Download Zattoo recordings to local/external storage (watch recordings offline on all devices)
 * DE+CH: Watch Live TV without VPN/Proxy (Premium/Ultimate subscription required)
 * DE+CH: Choose your bandwidth on your own (API supports streams up to Full HD)
+* Resellers are supported
 
 #### Supported platforms
 * any Linux-based OS, e.g. Ubuntu, Debian
@@ -60,13 +61,13 @@ sudo cpan install utf8
 mkdir ~/telerising
 
 # Download the .zip file and extract the files into your folder:
-wget https://github.com/sunsettrack4/telerising/archive/v0.1.6.zip
+wget https://github.com/sunsettrack4/telerising/archive/v0.2.0.zip
 
 # Unzip the file:
-unzip v0.1.6.zip
+unzip v0.2.0.zip
 
 # Move all script files to the created folder
-mv ~/telerising-0.1.6/* ~/telerising/
+mv ~/telerising-0.2.0/* ~/telerising/
 
 # Set system-wide permissions to the folder and its related files
 sudo chmod 0777 ~/telerising
