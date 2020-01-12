@@ -11,7 +11,26 @@ This API provides channel playlists to playback streams on all compatible device
 * Download Zattoo recordings to local/external storage (watch recordings offline on all devices)
 * DE+CH: Watch Live TV without VPN/Proxy (Premium/Ultimate subscription required)
 * DE+CH: Choose your bandwidth on your own (API supports streams up to Full HD)
-* Resellers are supported
+* Choose the Zattoo server on your own (better support for DNS services, use Zattoo DE+CH simultaneously)
+
+#### The following resellers (domain names) are supported:
+* 1&1 TV: www.1und1.tv
+* swb TV: tvonline.swb-gruppe.de
+* NetCologne: nettv.netcologne.de
+* EWE TV: tvonline.ewe.de
+* Salt: tv.salt.ch
+* NetPlus TV: netplus.tv
+* Quickline TV: mobiltv.quickline.com
+* M-Net: tvplus.m-net.de
+* Waly.tv: player.waly.tv
+* Lampert: meinewelt.cc
+* BBV TV: bbv-tv.net
+* VTX TV: vtxtv.ch
+* myVision TV: myvisiontv.ch
+* glattvision: iptv.glattvision.ch
+* SAK TV: saktv.ch
+* quantum TV: www.quantum-tv.com
+* eir TV: tv.eir.ie
 
 #### Supported platforms
 * any Linux-based OS, e.g. Ubuntu, Debian
@@ -53,7 +72,7 @@ sudo cpan install HTTP::Request::Common
 sudo cpan install HTTP::Cookies
 sudo cpan install HTML::TreeBuilder
 sudo cpan install URI::Escape
-sudo cpan install Sys::HostIP
+sudo cpan install Sys::HostAddr
 sudo cpan install POSIX
 sudo cpan install utf8
 
@@ -61,13 +80,13 @@ sudo cpan install utf8
 mkdir ~/telerising
 
 # Download the .zip file and extract the files into your folder:
-wget https://github.com/sunsettrack4/telerising/archive/v0.2.0.zip
+wget https://github.com/sunsettrack4/telerising/archive/v0.2.1.zip
 
 # Unzip the file:
-unzip v0.2.0.zip
+unzip v0.2.1.zip
 
 # Move all script files to the created folder
-mv ~/telerising-0.2.0/* ~/telerising/
+mv ~/telerising-0.2.1/* ~/telerising/
 
 # Set system-wide permissions to the folder and its related files
 sudo chmod 0777 ~/telerising
@@ -81,11 +100,15 @@ nano userfile.json
 perl zattoo.pl & disown
 ```
 #### Login file to be placed in script folder
+The variables "interface", "server" and "ffmpeg_lib" are optional.
 ```
 {
   "provider": "zattoo.com",
   "login": "firstname.lastname@example.com",
-  "password": "mypassword123"
+  "password": "mypassword123",
+  "interface": "eth0",
+  "server": "fr5-0",
+  "ffmpeg_lib": "/usr/bin/ffmpeg"
 }
 
 ```
