@@ -55,7 +55,7 @@ Please run the commands below to setup the script. "Sudo" is not required on use
 
 ```bash
 # Install all recommended applications:
-sudo apt-get install perl nano
+sudo apt-get install perl nano libwww-perl net-tools build-essential wget unzip
 
 # Install CPAN modules
 sudo cpan install JSON
@@ -64,6 +64,7 @@ sudo cpan install Time::Piece
 sudo cpan install LWP
 sudo cpan install LWP::Simple
 sudo cpan install LWP::UserAgent
+sudo cpan install LWP::Protocol::https
 sudo cpan install HTTP::Daemon
 sudo cpan install HTTP::Status
 sudo cpan install HTTP::Daemon
@@ -80,13 +81,13 @@ sudo cpan install utf8
 mkdir ~/telerising
 
 # Download the .zip file and extract the files into your folder:
-wget https://github.com/sunsettrack4/telerising/archive/v0.2.1.zip
+wget https://github.com/sunsettrack4/telerising/archive/v0.2.2.zip
 
 # Unzip the file:
-unzip v0.2.1.zip
+unzip v0.2.2.zip
 
 # Move all script files to the created folder
-mv ~/telerising-0.2.1/* ~/telerising/
+mv ~/telerising-0.2.2/* ~/telerising/
 
 # Set system-wide permissions to the folder and its related files
 sudo chmod 0777 ~/telerising
@@ -108,7 +109,8 @@ The variables "interface", "server" and "ffmpeg_lib" are optional.
   "password": "mypassword123",
   "interface": "eth0",
   "server": "fr5-0",
-  "ffmpeg_lib": "/usr/bin/ffmpeg"
+  "ffmpeg_lib": "/usr/bin/ffmpeg",
+  "port": "8080"
 }
 
 ```
@@ -120,17 +122,17 @@ The variables "interface", "server" and "ffmpeg_lib" are optional.
 
 #### Get channels.m3u to stream via VLC
 ```
-http://<host-ip>:8080/?file=channels.m3u&bw=5000&platform=hls
+http://<host-ip>:<port>/?file=channels.m3u&bw=5000&platform=hls
 ```
 
 #### Get channels.m3u to stream via VLC (favorites only)
 ```
-http://<host-ip>:8080/?file=channels.m3u&bw=5000&platform=hls&favorites=true
+http://<host-ip>:<port>/?file=channels.m3u&bw=5000&platform=hls&favorites=true
 ```
 
 #### Get channels.m3u to stream via ffmpeg pipe (Zattoo DE ==> 720p50)
 ```
-http://<host-ip>:8080/?file=channels.m3u&bw=5000&platform=hls5&ffmpeg=true
+http://<host-ip>:<port>/?file=channels.m3u&bw=5000&platform=hls5&ffmpeg=true
 ```
 
 
@@ -173,6 +175,7 @@ platform=hls5 - for: ffmpeg, tvHeadend
 favorites=true - create M3U with favorite channels only
 ffmpeg=true - create pipe:// references to be used for tvHeadend
 dolby=true - use Dolby audio (HLS5 only)
+audio2=true - use 2nd audio stream (HLS5 only)
 ```
 
 ## Further support
