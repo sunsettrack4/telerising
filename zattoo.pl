@@ -21,7 +21,7 @@
 # ###########################
 
 print "\n=================================\n";
-print   " TELERISING API v0.2.2 // ZATTOO \n";
+print   " TELERISING API v0.2.3 // ZATTOO \n";
 print   "=================================\n\n";
 
 use strict;
@@ -106,7 +106,7 @@ sub login_process {
 				$zserver = "fr5-0";
 			} elsif( $zserver eq "" ) {
 				$zserver = "fr5-0";
-			} elsif( $zserver =~ /fr5-[0-5]|zh2-[0-9]|zba6-[0-2]|1und1-fra1902-[1-4]|matterlau1-[0-1]/ ) {
+			} elsif( $zserver =~ /fr5-[0-5]|zh2-[0-9]|zba6-[0-2]|1und1-fra1902-[1-4]|matterlau1-[0-1]|matterzrh1-[0-1]/ ) {
 				print "NOTICE: Custom Zattoo server \"$zserver\" will be used.\n\n";
 			} else {
 				print "NOTICE: Custom Zattoo server \"$zserver\" is not supported, default server will be used instead.\n\n";
@@ -677,12 +677,20 @@ sub http_child {
 												$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $name . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 											}
 											
-											if( defined $ffmpeg and defined $dolby ) {
+											if( defined $ffmpeg and defined $dolby and defined $audio2 ) {
+												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+											} elsif( defined $ffmpeg and defined $dolby ) {
 												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+											} elsif( defined $ffmpeg and defined $audio2 ) {
+												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
 											} elsif( defined $ffmpeg ) {
 												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+											} elsif( defined $dolby and defined $audio2 ) {
+												$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\n";
 											} elsif( defined $dolby ) {
 												$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
+											} elsif( defined $audio2 ) {
+												$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\n";
 											} else {
 												$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
 											}
@@ -693,18 +701,26 @@ sub http_child {
 												my $logo = $channels->{'qualities'}[1]{'logo_black_84'};
 												$logo =~ s/84x48.png/210x120.png/g;
 												
-												if( $country eq /DE|CH/ and defined $rytec_id->{$name} ) {
+												if( $country =~ /DE|CH/ and defined $rytec_id->{$name} ) {
 													$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $rytec_id->{$name} . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 												} else {
 													$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $name . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 												}
 												
-												if( defined $ffmpeg and defined $dolby ) {
-												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+												if( defined $ffmpeg and defined $dolby and defined $audio2 ) {
+													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+												} elsif( defined $ffmpeg and defined $dolby ) {
+													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+												} elsif( defined $ffmpeg and defined $audio2 ) {
+													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
 												} elsif( defined $ffmpeg ) {
 													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+												} elsif( defined $dolby and defined $audio2 ) {
+													$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\n";
 												} elsif( defined $dolby ) {
 													$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
+												} elsif( defined $audio2 ) {
+													$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\n";
 												} else {
 													$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
 												}
@@ -730,7 +746,7 @@ sub http_child {
 									my $logo = $channels->{'qualities'}[0]{'logo_black_84'};
 									$logo =~ s/84x48.png/210x120.png/g;
 									
-									if( $country eq /DE|CH/ and defined $rytec_id->{$name} ) {
+									if( $country =~ /DE|CH/ and defined $rytec_id->{$name} ) {
 										$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $rytec_id->{$name} . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 									} else {
 										$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $name . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
@@ -760,7 +776,7 @@ sub http_child {
 										my $logo = $channels->{'qualities'}[1]{'logo_black_84'};
 										$logo =~ s/84x48.png/210x120.png/g;
 										
-										if( $country eq /DE|CH/ and defined $rytec_id->{$name} ) {
+										if( $country =~ /DE|CH/ and defined $rytec_id->{$name} ) {
 											$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $rytec_id->{$name} . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 										} else {
 											$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $name . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
