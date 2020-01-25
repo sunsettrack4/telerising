@@ -21,7 +21,7 @@
 # ###########################
 
 print "\n=================================\n";
-print   " TELERISING API v0.2.3 // ZATTOO \n";
+print   " TELERISING API v0.2.4 // ZATTOO \n";
 print   "=================================\n\n";
 
 use strict;
@@ -42,7 +42,7 @@ use HTTP::Cookies;
 use HTML::TreeBuilder;
 use URI::Escape;
 use Time::Piece;
-use Sys::HostAddr;
+use IO::Interface::Simple;
 use JSON;
 use POSIX qw/ WNOHANG /;
 use POSIX qw( strftime );
@@ -399,12 +399,59 @@ if( not defined $sessiondata ) {
 	exit;
 }
 		
-# SET SESSION PARAMS
+# SET INTERFACE PARAMS
 my $interface = $sessiondata->{"interface"};
 my $port      = $sessiondata->{"port"};
 
-my $hostipchecker = Sys::HostAddr->new( interface => $interface );
-my $hostip = $hostipchecker->first_ip;
+my $hostipchecker;
+my $hostip;
+
+if( defined $interface ) {
+	if( $interface eq "" ) {
+		undef $interface;
+	}
+}
+
+if( defined $interface ) {
+	
+	# USE CUSTOM INTERFACE
+	$hostipchecker = IO::Interface::Simple->new( "$interface" );
+	
+	if( defined $hostipchecker ) {
+		
+		if ( $hostipchecker->is_broadcast ) {
+			$hostip = $hostipchecker->address;
+		} else {
+			print "ERROR: Custom interface can't be used (no broadcast type).\n\n";
+			exit;
+		}
+		
+	} else {
+		
+		print "ERROR: Custom interface can't be used (unknown).\n\n";
+		exit;
+	
+	}
+	
+} else {
+	
+	# USE FIRST INTERFACE
+	my @interfaces = IO::Interface::Simple->interfaces;
+	
+	for my $hostipchecker ( @interfaces ) {
+		if ( $hostipchecker->is_broadcast ) {
+			if( not defined $hostip ) {
+				$hostip = $hostipchecker->address;
+			}
+		}
+	}
+	
+	if( not defined $hostip ) {
+		print "ERROR: Broadcast interface can't be found!\n\n";
+		exit;
+	}
+}
+
 
 # START DAEMON
 my $d = HTTP::Daemon->new(
