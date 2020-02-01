@@ -20,8 +20,11 @@
 # TELERISING API FOR ZATTOO #
 # ###########################
 
+unlink "log.txt";
+open (STDOUT, "| tee -ai log.txt");
+
 print "\n=================================\n";
-print   " TELERISING API v0.2.4 // ZATTOO \n";
+print   " TELERISING API v0.2.5 // ZATTOO \n";
 print   "=================================\n\n";
 
 use strict;
@@ -35,7 +38,6 @@ use LWP::Simple;
 use LWP::UserAgent;
 use HTTP::Daemon;
 use HTTP::Status;
-use HTTP::Daemon;
 use HTTP::Request::Params;
 use HTTP::Request::Common qw{ POST };
 use HTTP::Cookies;
@@ -43,6 +45,8 @@ use HTML::TreeBuilder;
 use URI::Escape;
 use Time::Piece;
 use IO::Interface::Simple;
+use IO::Socket::SSL;
+use Mozilla::CA; 
 use JSON;
 use POSIX qw/ WNOHANG /;
 use POSIX qw( strftime );
@@ -86,6 +90,8 @@ sub login_process {
 			my $zserver      = $userfile->{'server'};
 			my $ffmpeglib    = $userfile->{'ffmpeg_lib'};
 			my $port         = $userfile->{'port'};
+			my $ssl_mode     = $userfile->{'ssl_mode'};
+			my $ssl_verify;
 			
 			if( not defined $provider or not defined $login_mail or not defined $login_passwd ) {
 				print "ERROR: Unable to retrieve complete login data\n\n";
@@ -132,10 +138,16 @@ sub login_process {
 				print "NOTICE: Custom port \"$port\" will be used.\n\n";
 			}
 			
+			if( not defined $ssl_mode ) {
+				$ssl_mode = "1";
+			} elsif( $ssl_mode eq "0" ) {
+				print "WARNING: SSL verification disabled!\n\n";
+			}
+			
 			# CHECK PROVIDER
 			if( $provider eq "www.zattoo.com" ) {
 				$provider = "zattoo.com";
-			} elsif( $provider =~ /zattoo.com|www.1und1.tv|www.netplus.tv|mobiltv.quickline.com|tvplus.m-net.de|player.waly.tv|www.meinewelt.cc|www.bbv-tv.net|www.vtxtv.ch|www.myvisiontv.ch|iptv.glattvision.ch|www.saktv.ch|nettv.netcologne.de|tvonline.ewe.de|www.quantum-tv.com|tv.salt.ch|tvonline.swb-gruppe.de|tv.eir.ie/ ) {
+			} elsif( $provider =~ /zattoo.com|www.1und1.tv|mobiltv.quickline.com|tvplus.m-net.de|player.waly.tv|www.meinewelt.cc|www.bbv-tv.net|www.vtxtv.ch|www.myvisiontv.ch|iptv.glattvision.ch|www.saktv.ch|nettv.netcologne.de|tvonline.ewe.de|www.quantum-tv.com|tv.salt.ch|tvonline.swb-gruppe.de|tv.eir.ie/ ) {
 				print "";
 			} else {
 				print "ERROR: Provider is not supported. Please recheck the domain.\n\n";
@@ -147,7 +159,15 @@ sub login_process {
 
 			# GET APPTOKEN
 			my $main_url      = "https://$provider/";
-			my $main_agent    = LWP::UserAgent->new;
+			
+			my $main_agent    = LWP::UserAgent->new(
+				ssl_opts => {
+					SSL_verify_mode => $ssl_mode,
+					verify_hostname => $ssl_mode,
+					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+				},
+				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+			);
 
 			my $main_request  = HTTP::Request::Common::GET($main_url);
 			my $main_response = $main_agent->request($main_request);
@@ -198,7 +218,15 @@ sub login_process {
 
 			# GET SESSION ID
 			my $session_url    = "https://$provider/zapi/session/hello";
-			my $session_agent  = LWP::UserAgent->new;
+			
+			my $session_agent  = LWP::UserAgent->new(
+				ssl_opts => {
+					SSL_verify_mode => $ssl_mode,
+					verify_hostname => $ssl_mode,
+					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+				},
+				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+			);
 
 			my $session_request  = HTTP::Request::Common::POST($session_url, ['client_app_token' => uri_escape($apptoken), 'uuid' => uri_escape('d7512e98-38a0-4f01-b820-5a5cf98141fe'), 'lang' => uri_escape('en'), 'format' => uri_escape('json')]);
 			my $session_response = $session_agent->request($session_request);
@@ -225,7 +253,16 @@ sub login_process {
 
 			# GET LOGIN COOKIE
 			my $login_url    = "https://$provider/zapi/v2/account/login";
-			my $login_agent   = LWP::UserAgent->new;
+			
+			my $login_agent   = LWP::UserAgent->new(
+				ssl_opts => {
+					SSL_verify_mode => $ssl_mode,
+					verify_hostname => $ssl_mode,
+					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+				},
+				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+			);
+			
 			my $cookie_jar    = HTTP::Cookies->new;
 			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
 			$login_agent->cookie_jar($cookie_jar);
@@ -347,7 +384,7 @@ sub login_process {
 			
 			# CREATE FILE
 			open my $session_file, ">", "session.json" or die "UNABLE TO CREATE SESSION FILE!\n\n";
-			print $session_file "{\"provider\":\"$provider\",\"session_token\":\"$session_token\",\"powerid\":\"$powerid\",\"tv_mode\":\"$tv_mode\",\"country\":\"$country\",\"interface\":\"$interface\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\"}";
+			print $session_file "{\"provider\":\"$provider\",\"session_token\":\"$session_token\",\"powerid\":\"$powerid\",\"tv_mode\":\"$tv_mode\",\"country\":\"$country\",\"interface\":\"$interface\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"ssl_mode\":\"$ssl_mode\"}";
 			close $session_file;
 			
 			sleep 86400;
@@ -584,6 +621,7 @@ sub http_child {
 		my $powerid       = $session_data->{"powerid"};
 		my $server        = $session_data->{"server"};
 		my $ffmpeglib     = $session_data->{"ffmpeg_lib"};
+		my $ssl_mode      = $session_data->{"ssl_mode"};
 		
 		#
 		# RETRIEVE FILES
@@ -620,7 +658,15 @@ sub http_child {
 				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
 				
 				# CHANNEL M3U REQUEST
-				my $channel_agent = LWP::UserAgent->new;
+				my $channel_agent = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
 				$channel_agent->cookie_jar($cookie_jar);
 				my $channel_request  = HTTP::Request::Common::GET($channel_url);
 				my $channel_response = $channel_agent->request($channel_request);
@@ -638,7 +684,15 @@ sub http_child {
 				}
 				
 				# FAVORITES REQUEST
-				my $fav_agent = LWP::UserAgent->new;
+				my $fav_agent = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
 				$fav_agent->cookie_jar($cookie_jar);
 				my $fav_request  = HTTP::Request::Common::GET($fav_url);
 				my $fav_response = $fav_agent->request($fav_request);
@@ -656,7 +710,15 @@ sub http_child {
 				}
 				
 				# RYTEC REQUEST
-				my $rytec_agent    = LWP::UserAgent->new;
+				my $rytec_agent    = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
 				my $rytec_request  = HTTP::Request::Common::GET($rytec_url);
 				my $rytec_response = $rytec_agent->request($rytec_request);
 				
@@ -900,7 +962,15 @@ sub http_child {
 				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
 				
 				# RECORDING M3U REQUEST
-				my $channel_agent = LWP::UserAgent->new;
+				my $channel_agent = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
 				$channel_agent->cookie_jar($cookie_jar);
 				my $channel_request  = HTTP::Request::Common::GET($channel_url);
 				my $channel_response = $channel_agent->request($channel_request);
@@ -918,7 +988,15 @@ sub http_child {
 				}
 				
 				# RECORDING M3U REQUEST
-				my $playlist_agent = LWP::UserAgent->new;
+				my $playlist_agent = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
 				$playlist_agent->cookie_jar($cookie_jar);
 				my $playlist_request  = HTTP::Request::Common::GET($playlist_url);
 				my $playlist_response = $playlist_agent->request($playlist_request);
@@ -1496,7 +1574,15 @@ sub http_child {
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Loading Live URL\n";
 				my $live_url = "https://$provider/zapi/watch/live/$channel";
 				
-				my $live_agent = LWP::UserAgent->new;
+				my $live_agent = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
 				my $cookie_jar    = HTTP::Cookies->new;
 				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
 				$live_agent->cookie_jar($cookie_jar);
@@ -1535,7 +1621,15 @@ sub http_child {
 				
 					# LOAD PLAYLIST URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Loading M3U8\n";
-					my $livestream_agent  = LWP::UserAgent->new;
+					
+					my $livestream_agent  = LWP::UserAgent->new(
+						ssl_opts => {
+							SSL_verify_mode => $ssl_mode,
+							verify_hostname => $ssl_mode,
+							SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+						},
+						agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+					);
 					
 					my $livestream_request  = HTTP::Request::Common::GET($liveview_url);
 					my $livestream_response = $livestream_agent->request($livestream_request);
@@ -1782,7 +1876,15 @@ sub http_child {
 			my $stop    = time()-300;
 			my $epg_url = "https://$provider/zapi/v3/cached/$powerid/guide?start=$start&end=$stop";
 			
-			my $epg_agent = LWP::UserAgent->new;
+			my $epg_agent = LWP::UserAgent->new(
+				ssl_opts => {
+					SSL_verify_mode => $ssl_mode,
+					verify_hostname => $ssl_mode,
+					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+				},
+				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+			);
+			
 			my $cookie_jar    = HTTP::Cookies->new;
 			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
 			$epg_agent->cookie_jar($cookie_jar);
@@ -1857,7 +1959,15 @@ sub http_child {
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Add recording\n";
 				my $recadd_url = "https://$provider/zapi/playlist/program";
 				
-				my $recadd_agent  = LWP::UserAgent->new;
+				my $recadd_agent  = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
 				$recadd_agent->cookie_jar($cookie_jar);
 
 				my $recadd_request  = HTTP::Request::Common::POST($recadd_url, ['program_id' => $rec_id, 'series' => 'false', 'series_force' => 'false' ]);
@@ -1894,7 +2004,15 @@ sub http_child {
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Loading PVR URL\n";
 				my $recview_url = "https://$provider/zapi/watch/recording/$rec_fid";
 				
-				my $recview_agent  = LWP::UserAgent->new;
+				my $recview_agent  = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
 				$recview_agent->cookie_jar($cookie_jar);
 
 				my $recview_request  = HTTP::Request::Common::POST($recview_url, ['stream_type' => $platform, 'enable_eac3' => 'true', 'https_watch_urls' => 'True', 'cast_stream_type' => $platform ]);
@@ -1933,7 +2051,15 @@ sub http_child {
 					
 					# LOAD PLAYLIST URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Loading M3U8\n";
-					my $recurl_agent  = LWP::UserAgent->new;
+					
+					my $recurl_agent  = LWP::UserAgent->new(
+						ssl_opts => {
+							SSL_verify_mode => $ssl_mode,
+							verify_hostname => $ssl_mode,
+							SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+						},
+						agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+					);
 					
 					my $recurl_request  = HTTP::Request::Common::GET($rec_url);
 					my $recurl_response = $recurl_agent->request($recurl_request);
@@ -1966,7 +2092,15 @@ sub http_child {
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Remove recording\n";
 				my $recdel_url = "https://$provider/zapi/playlist/remove";
 				
-				my $recdel_agent  = LWP::UserAgent->new;
+				my $recdel_agent  = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
 				$recdel_agent->cookie_jar($cookie_jar);
 
 				my $recdel_request  = HTTP::Request::Common::POST($recdel_url, ['recording_id' => $rec_fid ]);
@@ -2041,7 +2175,14 @@ sub http_child {
 					my $link_url = $uri . "/" . $1; 
 						
 					# LOAD SEGMENTS URL
-					my $link_agent  = LWP::UserAgent->new;
+					my $link_agent  = LWP::UserAgent->new(
+						ssl_opts => {
+							SSL_verify_mode => $ssl_mode,
+							verify_hostname => $ssl_mode,
+							SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+						},
+						agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+					);
 					
 					my $link_request  = HTTP::Request::Common::GET($link_url);
 					my $link_response = $link_agent->request($link_request);
@@ -2249,7 +2390,15 @@ sub http_child {
 			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Loading PVR URL\n";
 			my $recchview_url = "https://$provider/zapi/watch/recording/$rec_ch";
 				
-			my $recchview_agent  = LWP::UserAgent->new;
+			my $recchview_agent  = LWP::UserAgent->new(
+				ssl_opts => {
+					SSL_verify_mode => $ssl_mode,
+					verify_hostname => $ssl_mode,
+					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+				},
+				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+			);
+			
 			my $cookie_jar    = HTTP::Cookies->new;
 			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
 			$recchview_agent->cookie_jar($cookie_jar);
@@ -2308,7 +2457,15 @@ sub http_child {
 					
 				# LOAD PLAYLIST URL
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Loading M3U8\n";
-				my $recchurl_agent  = LWP::UserAgent->new;
+				
+				my $recchurl_agent  = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
 					
 				my $recchurl_request  = HTTP::Request::Common::GET($recch_url);
 				my $recchurl_response = $recchurl_agent->request($recchurl_request);
@@ -2546,3 +2703,6 @@ sub http_child {
 		}
 	}
 }
+
+
+close(STDOUT);

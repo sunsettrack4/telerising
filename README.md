@@ -5,7 +5,7 @@ Get advanced access to Zattoo internet streams
 This API provides channel playlists to playback streams on all compatible devices.
 
 #### Zattoo Unlimited: Advantages
-* Ad free channel switch (also in Zattoo Free)
+* Ad free channel switch, unlimited streaming on big screens (also in Zattoo Free)
 * tvHeadend: Set PVR timers, unrestricted timeshift mode (also in Zattoo Free/Premium)
 * All devices with M3U playlist support can handle Zattoo streams
 * Download Zattoo recordings to local/external storage (watch recordings offline on all devices)
@@ -13,22 +13,22 @@ This API provides channel playlists to playback streams on all compatible device
 * DE+CH: Choose your bandwidth on your own (API supports streams up to Full HD)
 * Choose the Zattoo server on your own (better support for DNS services, use Zattoo DE+CH simultaneously)
 
-#### The following resellers (domain names) are supported:
+#### The following providers (domain names) are supported:
+* Zattoo: zattoo.com
 * 1&1 TV: www.1und1.tv
 * swb TV: tvonline.swb-gruppe.de
 * NetCologne: nettv.netcologne.de
 * EWE TV: tvonline.ewe.de
 * Salt: tv.salt.ch
-* NetPlus TV: netplus.tv
 * Quickline TV: mobiltv.quickline.com
 * M-Net: tvplus.m-net.de
 * Waly.tv: player.waly.tv
-* Lampert: meinewelt.cc
-* BBV TV: bbv-tv.net
-* VTX TV: vtxtv.ch
-* myVision TV: myvisiontv.ch
+* Lampert: www.meinewelt.cc
+* BBV TV: www.bbv-tv.net
+* VTX TV: www.vtxtv.ch
+* myVision TV: www.myvisiontv.ch
 * glattvision: iptv.glattvision.ch
-* SAK TV: saktv.ch
+* SAK TV: www.saktv.ch
 * quantum TV: www.quantum-tv.com
 * eir TV: tv.eir.ie
 
@@ -67,13 +67,14 @@ sudo cpan install LWP::UserAgent
 sudo cpan install LWP::Protocol::https
 sudo cpan install HTTP::Daemon
 sudo cpan install HTTP::Status
-sudo cpan install HTTP::Daemon
 sudo cpan install HTTP::Request::Params
 sudo cpan install HTTP::Request::Common
 sudo cpan install HTTP::Cookies
 sudo cpan install HTML::TreeBuilder
 sudo cpan install URI::Escape
 sudo cpan install IO::Interface::Simple
+sudo cpan install IO::Socket::SSL;
+sudo cpan install Mozilla::CA; 
 sudo cpan install POSIX
 sudo cpan install utf8
 
@@ -81,13 +82,13 @@ sudo cpan install utf8
 mkdir ~/telerising
 
 # Download the .zip file and extract the files into your folder:
-wget https://github.com/sunsettrack4/telerising/archive/v0.2.4.zip
+wget https://github.com/sunsettrack4/telerising/archive/v0.2.5.zip
 
 # Unzip the file:
-unzip v0.2.4.zip
+unzip v0.2.5.zip
 
 # Move all script files to the created folder
-mv ~/telerising-0.2.4/* ~/telerising/
+mv ~/telerising-0.2.5/* ~/telerising/
 
 # Set system-wide permissions to the folder and its related files
 sudo chmod 0777 ~/telerising
@@ -110,7 +111,8 @@ The variables "interface", "server" and "ffmpeg_lib" are optional.
   "interface": "eth0",
   "server": "fr5-0",
   "ffmpeg_lib": "/usr/bin/ffmpeg",
-  "port": "8080"
+  "port": "8080",
+  "ssl_mode": "1"
 }
 
 ```
