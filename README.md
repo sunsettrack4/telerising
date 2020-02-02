@@ -73,8 +73,9 @@ sudo cpan install HTTP::Cookies
 sudo cpan install HTML::TreeBuilder
 sudo cpan install URI::Escape
 sudo cpan install IO::Interface::Simple
-sudo cpan install IO::Socket::SSL;
-sudo cpan install Mozilla::CA; 
+sudo cpan install IO::Socket::SSL
+sudo cpan install Mozilla::CA
+sudo cpan install Encode
 sudo cpan install POSIX
 sudo cpan install utf8
 
@@ -82,13 +83,13 @@ sudo cpan install utf8
 mkdir ~/telerising
 
 # Download the .zip file and extract the files into your folder:
-wget https://github.com/sunsettrack4/telerising/archive/v0.2.5.zip
+wget https://github.com/sunsettrack4/telerising/archive/v0.2.6.zip
 
 # Unzip the file:
-unzip v0.2.5.zip
+unzip v0.2.6.zip
 
 # Move all script files to the created folder
-mv ~/telerising-0.2.5/* ~/telerising/
+mv ~/telerising-0.2.6/* ~/telerising/
 
 # Set system-wide permissions to the folder and its related files
 sudo chmod 0777 ~/telerising
@@ -178,6 +179,41 @@ favorites=true - create M3U with favorite channels only
 ffmpeg=true - create pipe:// references to be used for tvHeadend
 dolby=true - use Dolby audio (HLS5 only)
 audio2=true - use 2nd audio stream (HLS5 only)
+```
+
+#### Custom server list
+```
+fr5-0
+fr5-1
+fr5-2
+fr5-3
+fr5-4
+fr5-5
+zh2-0
+zh2-1
+zh2-2
+zh2-3
+zh2-4
+zh2-5
+zh2-6
+zh2-7
+zh2-8
+zh2-9
+zba6-0
+zba6-1
+zba6-2
+1und1-fra1902-1
+1und1-fra1902-2
+1und1-fra1902-3
+1und1-fra1902-4
+1und1-hhb1000-1
+1und1-hhb1000-2
+1und1-hhb1000-3
+1und1-hhb1000-4
+matterlau1-0
+matterlau1-1
+matterzrh1-0
+matterzrh1-1
 ```
 
 ## Further support

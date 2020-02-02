@@ -24,7 +24,7 @@ unlink "log.txt";
 open (STDOUT, "| tee -ai log.txt");
 
 print "\n=================================\n";
-print   " TELERISING API v0.2.5 // ZATTOO \n";
+print   " TELERISING API v0.2.6 // ZATTOO \n";
 print   "=================================\n\n";
 
 use strict;
@@ -48,6 +48,7 @@ use IO::Interface::Simple;
 use IO::Socket::SSL;
 use Mozilla::CA; 
 use JSON;
+use Encode;
 use POSIX qw/ WNOHANG /;
 use POSIX qw( strftime );
 
@@ -112,7 +113,7 @@ sub login_process {
 				$zserver = "fr5-0";
 			} elsif( $zserver eq "" ) {
 				$zserver = "fr5-0";
-			} elsif( $zserver =~ /fr5-[0-5]|zh2-[0-9]|zba6-[0-2]|1und1-fra1902-[1-4]|matterlau1-[0-1]|matterzrh1-[0-1]/ ) {
+			} elsif( $zserver =~ /fr5-[0-5]|zh2-[0-9]|zba6-[0-2]|1und1-fra1902-[1-4]|1und1-hhb1000-[1-4]|matterlau1-[0-1]|matterzrh1-[0-1]/ ) {
 				print "NOTICE: Custom Zattoo server \"$zserver\" will be used.\n\n";
 			} else {
 				print "NOTICE: Custom Zattoo server \"$zserver\" is not supported, default server will be used instead.\n\n";
@@ -916,8 +917,8 @@ sub http_child {
 				}
 				
 				my $response = HTTP::Response->new( 200, 'OK');
-				$response->header('Content-Type' => 'text'),
-				$response->content($ch_m3u);
+				$response->header('Content-Type' => 'text', 'Charset' => 'utf8'),
+				$response->content(Encode::encode_utf8($ch_m3u));
 				$c->send_response($response);
 				$c->close;
 				
@@ -1055,6 +1056,7 @@ sub http_child {
 					$record_start    =~ s/T/ /g;
 					$record_start    =~ s/Z//g;
 					$record_start    =~ s/-/\//g;
+					$name            =~ s/,/ /g;
 					
 					my $record_time = Time::Piece->strptime($record_start, "%Y/%m/%d %H:%M:%S");
 					my $record_local = strftime("%Y/%m/%d %H:%M:%S", localtime($record_time->epoch) );
@@ -1097,8 +1099,8 @@ sub http_child {
 				close $fh;
 				
 				my $response = HTTP::Response->new( 200, 'OK');
-				$response->header('Content-Type' => 'text'),
-				$response->content($rec_m3u);
+				$response->header('Content-Type' => 'text', 'Charset' => 'utf8'),
+				$response->content(Encode::encode_utf8($rec_m3u));
 				$c->send_response($response);
 				$c->close;
 				
@@ -1702,6 +1704,9 @@ sub http_child {
 						$link        =~ /(.*live-$final_quality.*)/m;
 						my $link_url = $uri . "/" . $1; 
 						
+						$link_url =~ s/https:\/\/zattoo-hls-live.akamaized.net/https:\/\/$server-hls-live.zahs.tv/g;
+						$link_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls-live.zahs.tv/g;
+						
 						my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" . $final_quality . "000\n" . $link_url;
 						
 						# CACHE PLAYLIST
@@ -1826,6 +1831,12 @@ sub http_child {
 						$link        =~ /(.*)($final_quality_audio.*?z32=)(.*)"/m;
 						my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $3;
 						my $link_audio_url = $uri . "/" . $2 . $3;
+						
+						$link_video_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
+						$link_video_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
+						
+						$link_audio_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
+						$link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
 						
 						my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
 						
@@ -2082,7 +2093,6 @@ sub http_child {
 					if( defined $link and defined $uri and defined $ch ) {
 						$uri     =~ s/(.*)(\/.*.m3u8.*)/$1/g;
 						$ch      =~ s/.*\.tv\///g;
-						$ch      =~ s/https:\/\/zattoo-$platform-pvr.akamaized.net\///g;
 						$ch      =~ s/\/.*//g;
 					}
 				
@@ -2535,7 +2545,9 @@ sub http_child {
 					# EDIT PLAYLIST
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Editing M3U8\n";
 					$link        =~ /(.*$final_quality\.m3u8.*)/m;
-					my $link_url = $uri . "/" . $1; 
+					my $link_url = $uri . "/" . $1;
+					
+					$link_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls-pvr.zahs.tv/g;
 							
 					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" . $final_quality . "000\n" . $link_url;
 					
@@ -2661,7 +2673,10 @@ sub http_child {
 					$link        =~ /(.*)($final_quality_audio.*?z32=)(.*)"/m;
 					my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $3;
 					my $link_audio_url = $uri . "/" . $2 . $3;
-						
+					
+					$link_video_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-pvr.zahs.tv/g;
+					$link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-pvr.zahs.tv/g;
+					
 					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
 					
 					# CACHE PLAYLIST
