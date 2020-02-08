@@ -16,16 +16,16 @@
 #  You should have received a copy of the GNU General Public License
 #  along with zattoo_tvh. If not, see <http://www.gnu.org/licenses/>.
 
-# ###########################
-# TELERISING API FOR ZATTOO #
-# ###########################
+# ####################################
+# TELERISING API FOR ZATTOO + WILMAA #
+# ####################################
 
 unlink "log.txt";
 open (STDOUT, "| tee -ai log.txt");
 
-print "\n=================================\n";
-print   " TELERISING API v0.2.6 // ZATTOO \n";
-print   "=================================\n\n";
+print "\n=======================\n";
+print   " TELERISING API v0.2.7 \n";
+print   "=======================\n\n";
 
 use strict;
 use warnings;
@@ -39,7 +39,7 @@ use LWP::UserAgent;
 use HTTP::Daemon;
 use HTTP::Status;
 use HTTP::Request::Params;
-use HTTP::Request::Common qw{ POST };
+use HTTP::Request::Common;
 use HTTP::Cookies;
 use HTML::TreeBuilder;
 use URI::Escape;
@@ -91,15 +91,24 @@ sub login_process {
 			my $zserver      = $userfile->{'server'};
 			my $ffmpeglib    = $userfile->{'ffmpeg_lib'};
 			my $port         = $userfile->{'port'};
+			my $pin          = $userfile->{'youth_protection_pin'};
 			my $ssl_mode     = $userfile->{'ssl_mode'};
 			my $ssl_verify;
 			
-			if( not defined $provider or not defined $login_mail or not defined $login_passwd ) {
-				print "ERROR: Unable to retrieve complete login data\n\n";
+			if( not defined $provider ) {
+				print "ERROR: No provider selected\n\n";
 				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
-				print $error_file "ERROR: Unable to retrieve complete login data";
+				print $error_file "ERROR: No provider selected";
 				close $error_file;
 				exit;
+			} elsif( $provider ne "wilmaa.com" ) {
+				if( not defined $login_mail or not defined $login_passwd ) {
+					print "ERROR: Unable to retrieve complete login data\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "ERROR: Unable to retrieve complete login data";
+					close $error_file;
+					exit;
+				}
 			}
 			
 			# SET DEFAULT VALUES
@@ -113,7 +122,7 @@ sub login_process {
 				$zserver = "fr5-0";
 			} elsif( $zserver eq "" ) {
 				$zserver = "fr5-0";
-			} elsif( $zserver =~ /fr5-[0-5]|zh2-[0-9]|zba6-[0-2]|1und1-fra1902-[1-4]|1und1-hhb1000-[1-4]|matterlau1-[0-1]|matterzrh1-[0-1]/ ) {
+			} elsif( $zserver =~ /fr5-[0-5]|zh2-[0-9]|zba6-[0-2]|1und1-fra1902-[1-4]|1und1-hhb1000-[1-4]|1und1-dus1901-[1-4]|1und1-ess1901-[1-2]|matterlau1-[0-1]|matterzrh1-[0-1]/ ) {
 				print "NOTICE: Custom Zattoo server \"$zserver\" will be used.\n\n";
 			} else {
 				print "NOTICE: Custom Zattoo server \"$zserver\" is not supported, default server will be used instead.\n\n";
@@ -139,6 +148,19 @@ sub login_process {
 				print "NOTICE: Custom port \"$port\" will be used.\n\n";
 			}
 			
+			if( not defined $pin ) {
+				$pin = "NONE";
+			} elsif( $provider eq "wilmaa.com" ) {
+				$pin = "NONE";
+			} elsif( $pin eq "" ) {
+				$pin = "NONE";
+			} elsif( $pin =~ /[0-9][0-9][0-9][0-9]/ ) {
+				print "NOTICE: Youth protection pin will be used to request channel playlists.\n\n";
+			} else {
+				print "NOTICE: Youth protection pin must consist of 4 numbers - pin disabled.\n\n";
+				$pin = "NONE";
+			}
+			
 			if( not defined $ssl_mode ) {
 				$ssl_mode = "1";
 			} elsif( $ssl_mode eq "0" ) {
@@ -148,7 +170,7 @@ sub login_process {
 			# CHECK PROVIDER
 			if( $provider eq "www.zattoo.com" ) {
 				$provider = "zattoo.com";
-			} elsif( $provider =~ /zattoo.com|www.1und1.tv|mobiltv.quickline.com|tvplus.m-net.de|player.waly.tv|www.meinewelt.cc|www.bbv-tv.net|www.vtxtv.ch|www.myvisiontv.ch|iptv.glattvision.ch|www.saktv.ch|nettv.netcologne.de|tvonline.ewe.de|www.quantum-tv.com|tv.salt.ch|tvonline.swb-gruppe.de|tv.eir.ie/ ) {
+			} elsif( $provider =~ /zattoo.com|wilmaa.com|www.1und1.tv|mobiltv.quickline.com|tvplus.m-net.de|player.waly.tv|www.meinewelt.cc|www.bbv-tv.net|www.vtxtv.ch|www.myvisiontv.ch|iptv.glattvision.ch|www.saktv.ch|nettv.netcologne.de|tvonline.ewe.de|www.quantum-tv.com|tv.salt.ch|tvonline.swb-gruppe.de|tv.eir.ie/ ) {
 				print "";
 			} else {
 				print "ERROR: Provider is not supported. Please recheck the domain.\n\n";
@@ -156,239 +178,393 @@ sub login_process {
 				print $error_file "ERROR: Provider is not supported. Please recheck the domain.";
 				close $error_file;
 				exit;
-			}	
-
-			# GET APPTOKEN
-			my $main_url      = "https://$provider/";
-			
-			my $main_agent    = LWP::UserAgent->new(
-				ssl_opts => {
-					SSL_verify_mode => $ssl_mode,
-					verify_hostname => $ssl_mode,
-					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
-				},
-				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
-			);
-
-			my $main_request  = HTTP::Request::Common::GET($main_url);
-			my $main_response = $main_agent->request($main_request);
-
-			if( $main_response->is_error ) {
-				print "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
-				print "RESPONSE:\n\n" . $main_response->content . "\n\n";
-				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
-				print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)";
-				close $error_file;
-				exit;
-			}
-
-			my $parser        = HTML::Parser->new;
-			my $main_content  = $main_response->content;
-
-			if( not defined $main_content) {
-				print "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)\n\n";
-				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
-				print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)";
-				close $error_file;
-				exit;
-			}
-
-			my $zattootree   = HTML::TreeBuilder->new;
-			$zattootree->parse($main_content);
-
-			if( not defined $zattootree) {
-				print "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)\n\n";
-				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
-				print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)";
-				close $error_file;
-				exit;
-			}
-
-			my @scriptvalues = $zattootree->look_down('type' => 'text/javascript');
-			my $apptoken     = $scriptvalues[0]->as_HTML;
-			
-			if( defined $apptoken ) {
-				$apptoken        =~ s/(.*window.appToken = ')(.*)(';.*)/$2/g;
-			} else {
-				print "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)\n\n";
-				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
-				print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)";
-				close $error_file;
-				exit;
-			}
-
-			# GET SESSION ID
-			my $session_url    = "https://$provider/zapi/session/hello";
-			
-			my $session_agent  = LWP::UserAgent->new(
-				ssl_opts => {
-					SSL_verify_mode => $ssl_mode,
-					verify_hostname => $ssl_mode,
-					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
-				},
-				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
-			);
-
-			my $session_request  = HTTP::Request::Common::POST($session_url, ['client_app_token' => uri_escape($apptoken), 'uuid' => uri_escape('d7512e98-38a0-4f01-b820-5a5cf98141fe'), 'lang' => uri_escape('en'), 'format' => uri_escape('json')]);
-			my $session_response = $session_agent->request($session_request);
-			my $session_token    = $session_response->header('Set-cookie');
-			
-			if( defined $session_token ) {
-				$session_token       =~ s/(.*)(beaker.session.id=)(.*)(; Path.*)/$3/g;
-			} else {
-				print "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)\n\n";
-				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
-				print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)";
-				close $error_file;
-				exit;
-			}
-
-			if( $session_response->is_error ) {
-				print "LOGIN FAILED! (invalid response)\n\n";
-				print "RESPONSE:\n\n" . $session_response->content . "\n\n";
-				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
-				print $error_file "LOGIN FAILED! (invalid response)";
-				close $error_file;
-				exit;
-			}
-
-			# GET LOGIN COOKIE
-			my $login_url    = "https://$provider/zapi/v2/account/login";
-			
-			my $login_agent   = LWP::UserAgent->new(
-				ssl_opts => {
-					SSL_verify_mode => $ssl_mode,
-					verify_hostname => $ssl_mode,
-					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
-				},
-				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
-			);
-			
-			my $cookie_jar    = HTTP::Cookies->new;
-			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
-			$login_agent->cookie_jar($cookie_jar);
-
-			my $login_request  = HTTP::Request::Common::POST($login_url, ['login' => $login_mail, 'password' => $login_passwd ]);
-			my $login_response = $login_agent->request($login_request);
-
-			if( $login_response->is_error ) {
-				print "LOGIN FAILED! (please re-check login data)\n\n";
-				print "RESPONSE:\n\n" . $login_response->content . "\n\n";
-				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
-				print $error_file "LOGIN FAILED! (please re-check login data)";
-				close $error_file;
-				exit;
-			} else {
-				print "LOGIN OK!\n\n";
-			}
-
-			my $login_token    = $login_response->header('Set-cookie');
-			$login_token       =~ s/(.*)(beaker.session.id=)(.*)(; Path.*)/$3/g;
-
-			# ANALYSE ACCOUNT
-			my $analyse_login  = decode_json($login_response->content);
-
-			if( not defined $analyse_login ) {
-				print "ERROR: Unable to parse user data\n\n";
-				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
-				print $error_file "ERROR: Unable to parse user data";
-				close $error_file;
-				exit;
-			}
-
-			my $country        = $analyse_login->{"session"}->{"service_region_country"};
-			my $alias          = $analyse_login->{"session"}->{"aliased_country_code"};
-			my @products       = @{ $analyse_login->{"session"}->{"user"}->{"products"} };
-			my $powerid        = $analyse_login->{"session"}->{"power_guide_hash"};
-
-			my $product_code;
-
-			if( @products ) {
-				foreach my $products ( @products) {
-					if( $products->{"name"} =~ m/PREMIUM/ ) {
-						$product_code = "PREMIUM";
-					} elsif( $products->{"name"} =~ m/ULTIMATE/ ) {
-						$product_code = "ULTIMATE";
-					}
-				}
 			}
 			
-			if( not defined $country ) {
-				$country = "XX";
-			}
-			
-			if( $country eq "CH" ) {
-				print "--- COUNTRY: SWITZERLAND ---\n\n";
-			} elsif( $country eq "DE" ) {
-				print "--- COUNTRY: GERMANY ---\n\n";
-			} elsif( $provider eq "zattoo.com" ) {
-				print "--- COUNTRY: OTHER ---\n\n";
-				print "ERROR: No valid service country detected, Zattoo services can't be used.\n\n";
-				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
-				print $error_file "ERROR: No valid service country detected, Zattoo services can't be used.";
-				close $error_file;
-				exit;
-			} else {
-				print "--- COUNTRY: OTHER ---\n\n";
-			}
-
-			if( defined $product_code ) {
-				if( $product_code eq "PREMIUM" ) {
-					print "--- YOUR ACCOUNT TYPE: PREMIUM ---\n\n";
-				} elsif( $product_code eq "ULTIMATE" ) {
-					print "--- YOUR ACCOUNT TYPE: ULTIMATE ---\n\n";
-				}
-			} elsif( $provider eq "zattoo.com" ) {
-				print "--- YOUR ACCOUNT TYPE: FREE ---\n\n";
-				$product_code = "FREE";
-			} else {
-				print "--- YOUR ACCOUNT TYPE: RESELLER ---\n\n";
-			}
-
-			my $tv_mode;
-
-			if( $country eq "CH" and $provider eq "zattoo.com" ) {
+			if( $provider eq "wilmaa.com" ) {
 				
-				if( $alias ne "CH" and $product_code ne "FREE" ) {
-					print "NOTICE: No Swiss IP address detected, using PVR mode for Live TV.\n\n";
+				#
+				# WILMAA
+				#
+				
+				# LOOKUP IP ADDRESS
+				my $geocheck = get("https://ipapi.co/json");
+				my $local_ip = decode_json($geocheck);
+				my $country_code = $local_ip->{"country_code"};
+				my $tv_mode;
+				
+				if( $country_code ne "CH" and defined $login_mail and defined $login_passwd ) {
+					print "--- YOUR ACCOUNT TYPE: WILMAA ---\n\n";
+					print "--- COUNTRY: OTHER ---\n\n";
+					print "NOTICE: No Swiss IP address detected, Live TV feature is disabled.\n\n";
 					$tv_mode = "pvr";
-				} elsif ( $alias ne "CH" and $product_code eq "FREE" ) {
-					print "ERROR: No Swiss IP address detected, Zattoo services can't be used.\n\n";
+				} elsif( $country_code ne "CH" ) {
+					print "--- YOUR ACCOUNT TYPE: WILMAA (ANONYMOUS) ---\n\n";
+					print "--- COUNTRY: OTHER ---\n\n";
+					print "ERROR: No valid service country detected, Wilmaa services can't be used.\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
-					print $error_file "ERROR: No Swiss IP address detected, Zattoo services can't be used.";
+					print $error_file "ERROR: No valid service country detected, Wilmaa services can't be used.";
 					close $error_file;
 					exit;
+				} elsif( $country_code eq "CH" and defined $login_mail and defined $login_passwd ) {
+					print "--- YOUR ACCOUNT TYPE: WILMAA ---\n\n";
+					print "--- COUNTRY: SWITZERLAND ---\n\n";
+					$tv_mode = "live";
 				} else {
+					print "--- YOUR ACCOUNT TYPE: WILMAA (ANONYMOUS) ---\n\n";
+					print "--- COUNTRY: SWITZERLAND ---\n\n";
 					$tv_mode = "live";
 				}
 				
-			} elsif( $country eq "DE" and $provider eq "zattoo.com" ) {
+				if( defined $login_mail and defined $login_passwd ) {
+					
+					# GET APPTOKEN + SESSION ID
+					my $main_url      = "https://www.wilmaa.com/de/my/headless/login?callback=undefined";
 				
-				if( $alias ne "DE" and $product_code eq "FREE" ) {
-					print "ERROR: No German IP address detected, Zattoo services can't be used.\n\n";
+					my $main_agent    = LWP::UserAgent->new(
+						ssl_opts => {
+							SSL_verify_mode => $ssl_mode,
+							verify_hostname => $ssl_mode,
+							SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+						},
+						agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+					);
+
+					my $main_request  = HTTP::Request::Common::GET($main_url);
+					my $main_response = $main_agent->request($main_request);
+					my $session_token    = $main_response->header('Set-cookie');
+					
+					if( defined $session_token ) {
+						$session_token       =~ s/(.*)(wilmaa=)(.*)(; expires.*)/$3/g;
+					} else {
+						print "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)\n\n";
+						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)";
+						close $error_file;
+						exit;
+					}
+
+					my $parser        = HTML::Parser->new;
+					my $main_content  = $main_response->content;
+
+					if( not defined $main_content) {
+						print "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)\n\n";
+						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)";
+						close $error_file;
+						exit;
+					}
+
+					my $wilmaatree   = HTML::TreeBuilder->new;
+					$wilmaatree->parse($main_content);
+
+					if( not defined $wilmaatree) {
+						print "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)\n\n";
+						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)";
+						close $error_file;
+						exit;
+					}
+
+					my @scriptvalues = $wilmaatree->look_down('name' => 'csrf_token');
+					my $apptoken     = $scriptvalues[0]->as_HTML;
+					
+					if( defined $apptoken ) {
+						$apptoken        =~ s/(.*value=")(.*)(".*)/$2/g;
+					} else {
+						print "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)\n\n";
+						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)";
+						close $error_file;
+						exit;
+					}
+					
+					# GET LOGIN COOKIE
+					my $login_url    = "https://www.wilmaa.com/de/my/headless/login?callback=undefined";
+					
+					my $login_agent   = LWP::UserAgent->new(
+						ssl_opts => {
+							SSL_verify_mode => $ssl_mode,
+							verify_hostname => $ssl_mode,
+							SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+						},
+						agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+					);
+					
+					my $cookie_jar    = HTTP::Cookies->new;
+					$cookie_jar->set_cookie(0,'wilmaa',$session_token,'/','.wilmaa.com',443);
+					$login_agent->cookie_jar($cookie_jar);
+
+					my $login_request  = HTTP::Request::Common::POST($login_url, ['username' => $login_mail, 'password' => $login_passwd, 'csrf_token' => $apptoken, 'login_form' => 'true' ]);
+					my $login_response = $login_agent->request($login_request);
+					my $login_user     = $login_response->header('set-cookie');
+					
+					if( not defined $login_user ) {
+						print "LOGIN FAILED! (please re-check login data)\n\n";
+						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+						print $error_file "LOGIN FAILED! (please re-check login data)";
+						close $error_file;
+						exit;
+					} else {
+						print "LOGIN OK!\n\n";
+					}
+					
+					$login_user       =~ s/(.*)(wilmaa_user_id=)(.*)(; expires.*)(wilmaa_onboarding_user_id.*)/$3/g;
+					
+					# CREATE FILE
+					open my $session_file, ">", "session.json" or die "UNABLE TO CREATE SESSION FILE!\n\n";
+					print $session_file "{\"provider\":\"$provider\",\"tv_mode\":\"$tv_mode\",\"wilmaa_user_id\":\"$login_user\",\"session_token\":\"$session_token\",\"interface\":\"$interface\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"ssl_mode\":\"$ssl_mode\"}";
+					close $session_file;
+					
+					sleep 86400;
+				
+				}
+				
+				# CREATE FILE
+				open my $session_file, ">", "session.json" or die "UNABLE TO CREATE SESSION FILE!\n\n";
+				print $session_file "{\"provider\":\"$provider\",\"tv_mode\":\"$tv_mode\",\"interface\":\"$interface\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"ssl_mode\":\"$ssl_mode\"}";
+				close $session_file;
+				
+				sleep 86400;
+				
+			} else {
+				
+				#
+				# ZATTOO
+				#
+
+				# GET APPTOKEN
+				my $main_url      = "https://$provider/";
+				
+				my $main_agent    = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+
+				my $main_request  = HTTP::Request::Common::GET($main_url);
+				my $main_response = $main_agent->request($main_request);
+
+				if( $main_response->is_error ) {
+					print "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
+					print "RESPONSE:\n\n" . $main_response->content . "\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
-					print $error_file "ERROR: No German IP address detected, Zattoo services can't be used.";
+					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)";
 					close $error_file;
 					exit;
-				} elsif( $alias ne "DE" and $product_code =~ /PREMIUM|ULTIMATE/ ) {
-					if( $alias =~ /BE|FR|IT|LU|NL|DK|IE|UK|GR|PT|ES|FI|AT|SE|EE|LT|LV|MT|PL|SK|SI|CZ|HU|CY|BG|RO|HR|GP|GY|MQ|RE|YT|AN/ ) {
-						print "NOTICE: No German IP address detected, Zattoo services can be used within the EU.\n\n";
+				}
+
+				my $parser        = HTML::Parser->new;
+				my $main_content  = $main_response->content;
+
+				if( not defined $main_content) {
+					print "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)";
+					close $error_file;
+					exit;
+				}
+
+				my $zattootree   = HTML::TreeBuilder->new;
+				$zattootree->parse($main_content);
+
+				if( not defined $zattootree) {
+					print "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)";
+					close $error_file;
+					exit;
+				}
+
+				my @scriptvalues = $zattootree->look_down('type' => 'text/javascript');
+				my $apptoken     = $scriptvalues[0]->as_HTML;
+				
+				if( defined $apptoken ) {
+					$apptoken        =~ s/(.*window.appToken = ')(.*)(';.*)/$2/g;
+				} else {
+					print "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)";
+					close $error_file;
+					exit;
+				}
+
+				# GET SESSION ID
+				my $session_url    = "https://$provider/zapi/session/hello";
+				
+				my $session_agent  = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+
+				my $session_request  = HTTP::Request::Common::POST($session_url, ['client_app_token' => uri_escape($apptoken), 'uuid' => uri_escape('d7512e98-38a0-4f01-b820-5a5cf98141fe'), 'lang' => uri_escape('en'), 'format' => uri_escape('json')]);
+				my $session_response = $session_agent->request($session_request);
+				my $session_token    = $session_response->header('Set-cookie');
+				
+				if( defined $session_token ) {
+					$session_token       =~ s/(.*)(beaker.session.id=)(.*)(; Path.*)/$3/g;
+				} else {
+					print "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)";
+					close $error_file;
+					exit;
+				}
+
+				if( $session_response->is_error ) {
+					print "LOGIN FAILED! (invalid response)\n\n";
+					print "RESPONSE:\n\n" . $session_response->content . "\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "LOGIN FAILED! (invalid response)";
+					close $error_file;
+					exit;
+				}
+
+				# GET LOGIN COOKIE
+				my $login_url    = "https://$provider/zapi/v2/account/login";
+				
+				my $login_agent   = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
+				my $cookie_jar    = HTTP::Cookies->new;
+				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
+				$login_agent->cookie_jar($cookie_jar);
+
+				my $login_request  = HTTP::Request::Common::POST($login_url, ['login' => $login_mail, 'password' => $login_passwd ]);
+				my $login_response = $login_agent->request($login_request);
+
+				if( $login_response->is_error ) {
+					print "LOGIN FAILED! (please re-check login data)\n\n";
+					print "RESPONSE:\n\n" . $login_response->content . "\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "LOGIN FAILED! (please re-check login data)";
+					close $error_file;
+					exit;
+				} else {
+					print "LOGIN OK!\n\n";
+				}
+
+				my $login_token    = $login_response->header('Set-cookie');
+				$login_token       =~ s/(.*)(beaker.session.id=)(.*)(; Path.*)/$3/g;
+
+				# ANALYSE ACCOUNT
+				my $analyse_login  = decode_json($login_response->content);
+
+				if( not defined $analyse_login ) {
+					print "ERROR: Unable to parse user data\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "ERROR: Unable to parse user data";
+					close $error_file;
+					exit;
+				}
+
+				my $country        = $analyse_login->{"session"}->{"service_region_country"};
+				my $alias          = $analyse_login->{"session"}->{"aliased_country_code"};
+				my @products       = @{ $analyse_login->{"session"}->{"user"}->{"products"} };
+				my $powerid        = $analyse_login->{"session"}->{"power_guide_hash"};
+
+				my $product_code;
+
+				if( @products ) {
+					foreach my $products ( @products) {
+						if( $products->{"name"} =~ m/PREMIUM/ ) {
+							$product_code = "PREMIUM";
+						} elsif( $products->{"name"} =~ m/ULTIMATE/ ) {
+							$product_code = "ULTIMATE";
+						}
+					}
+				}
+				
+				if( not defined $country ) {
+					$country = "XX";
+				}
+				
+				if( $country eq "CH" ) {
+					print "--- COUNTRY: SWITZERLAND ---\n\n";
+				} elsif( $country eq "DE" ) {
+					print "--- COUNTRY: GERMANY ---\n\n";
+				} elsif( $provider eq "zattoo.com" ) {
+					print "--- COUNTRY: OTHER ---\n\n";
+					print "ERROR: No valid service country detected, Zattoo services can't be used.\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "ERROR: No valid service country detected, Zattoo services can't be used.";
+					close $error_file;
+					exit;
+				} else {
+					print "--- COUNTRY: OTHER ---\n\n";
+				}
+
+				if( defined $product_code ) {
+					if( $product_code eq "PREMIUM" ) {
+						print "--- YOUR ACCOUNT TYPE: ZATTOO PREMIUM ---\n\n";
+					} elsif( $product_code eq "ULTIMATE" ) {
+						print "--- YOUR ACCOUNT TYPE: ZATTOO ULTIMATE ---\n\n";
+					}
+				} elsif( $provider eq "zattoo.com" ) {
+					print "--- YOUR ACCOUNT TYPE: ZATTOO FREE ---\n\n";
+					$product_code = "FREE";
+				} else {
+					print "--- YOUR ACCOUNT TYPE: RESELLER ---\n\n";
+				}
+
+				my $tv_mode;
+
+				if( $country eq "CH" and $provider eq "zattoo.com" ) {
+					
+					if( $alias ne "CH" and $product_code ne "FREE" ) {
+						print "NOTICE: No Swiss IP address detected, using PVR mode for Live TV.\n\n";
+						$tv_mode = "pvr";
+					} elsif ( $alias ne "CH" and $product_code eq "FREE" ) {
+						print "ERROR: No Swiss IP address detected, Zattoo services can't be used.\n\n";
+						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+						print $error_file "ERROR: No Swiss IP address detected, Zattoo services can't be used.";
+						close $error_file;
+						exit;
+					} else {
 						$tv_mode = "live";
 					}
+					
+				} elsif( $country eq "DE" and $provider eq "zattoo.com" ) {
+					
+					if( $alias ne "DE" and $product_code eq "FREE" ) {
+						print "ERROR: No German IP address detected, Zattoo services can't be used.\n\n";
+						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+						print $error_file "ERROR: No German IP address detected, Zattoo services can't be used.";
+						close $error_file;
+						exit;
+					} elsif( $alias ne "DE" and $product_code =~ /PREMIUM|ULTIMATE/ ) {
+						if( $alias =~ /BE|FR|IT|LU|NL|DK|IE|UK|GR|PT|ES|FI|AT|SE|EE|LT|LV|MT|PL|SK|SI|CZ|HU|CY|BG|RO|HR|GP|GY|MQ|RE|YT|AN/ ) {
+							print "NOTICE: No German IP address detected, Zattoo services can be used within the EU.\n\n";
+							$tv_mode = "live";
+						}
+					} else {
+						$tv_mode = "live";
+					}
+				
 				} else {
 					$tv_mode = "live";
 				}
+				
+				# CREATE FILE
+				open my $session_file, ">", "session.json" or die "UNABLE TO CREATE SESSION FILE!\n\n";
+				print $session_file "{\"provider\":\"$provider\",\"session_token\":\"$session_token\",\"powerid\":\"$powerid\",\"tv_mode\":\"$tv_mode\",\"country\":\"$country\",\"interface\":\"$interface\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"pin\":\"$pin\",\"ssl_mode\":\"$ssl_mode\"}";
+				close $session_file;
+				
+				sleep 86400;
 			
-			} else {
-				$tv_mode = "live";
 			}
-			
-			# CREATE FILE
-			open my $session_file, ">", "session.json" or die "UNABLE TO CREATE SESSION FILE!\n\n";
-			print $session_file "{\"provider\":\"$provider\",\"session_token\":\"$session_token\",\"powerid\":\"$powerid\",\"tv_mode\":\"$tv_mode\",\"country\":\"$country\",\"interface\":\"$interface\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"ssl_mode\":\"$ssl_mode\"}";
-			close $session_file;
-			
-			sleep 86400;
 		
 		}
 	
@@ -591,6 +767,9 @@ sub http_child {
 		# SET AUDIO SEGMENT
 		my $zaudio   = $params->{'audio'};
 		
+		# SET REMOVE FLAG
+		my $remove   = $params->{'remove'};
+		
 		# READ SESSION FILE
 		my $json;
 		{
@@ -622,7 +801,9 @@ sub http_child {
 		my $powerid       = $session_data->{"powerid"};
 		my $server        = $session_data->{"server"};
 		my $ffmpeglib     = $session_data->{"ffmpeg_lib"};
+		my $pin           = $session_data->{"pin"};
 		my $ssl_mode      = $session_data->{"ssl_mode"};
+		my $w_user_id     = $session_data->{"wilmaa_user_id"};
 		
 		#
 		# RETRIEVE FILES
@@ -631,17 +812,19 @@ sub http_child {
 		if( defined $filename and defined $quality and defined $platform ) {
 			
 			#
-			# CHANNEL LIST
+			# ZATTOO CHANNEL LIST
 			#
 			
-			if( $filename eq "channels.m3u" and $quality =~ /8000|5000|4999|3000|2999|1500/ and $platform =~ /hls|hls5/ ) {
+			if( $filename eq "channels.m3u" and $quality =~ /8000|5000|4999|3000|2999|1500/ and $platform =~ /hls|hls5/ and $provider ne "wilmaa.com" ) {
 				
 				# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
-				if( open my $fh, "<", "channels_m3u:$quality:$platform:cached" ) {
+				if( open my $file, "<", "channels_m3u:$quality:$platform:cached" ) {
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
 					$c->send_file_response("channels_m3u:$quality:$platform:cached");
 					$c->close;
+					close $file;
+					unlink "channels_m3u:$quality:$platform:cached";
 						
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Channel list resent to client - params: bandwidth=$quality, platform=$platform\n";
 					exit;
@@ -923,9 +1106,9 @@ sub http_child {
 				$c->close;
 				
 				# CACHE PLAYLIST
-				open my $fh, ">", "channels_m3u:$quality:$platform:cached";
-				print $fh "$ch_m3u";
-				close $fh;
+				open my $cachedfile, ">", "channels_m3u:$quality:$platform:cached";
+				print $cachedfile "$ch_m3u";
+				close $cachedfile;
 				
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Channel list sent to client - params: bandwidth=$quality, platform=$platform\n";
 				
@@ -936,17 +1119,179 @@ sub http_child {
 			
 			
 			#
-			# RECORDING LIST
+			# WILMAA CHANNEL LIST
 			#
 			
-			} elsif( $filename eq "recordings.m3u" and $quality =~ /8000|5000|4999|3000|2999|1500/ and $platform =~ /hls|hls5/ ) {
+			} elsif( $filename eq "channels.m3u" and $quality =~ /8000|5000|4999|3000|2999|1500/ and $platform =~ /hls5/ and $provider eq "wilmaa.com" ) {
 				
 				# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
-				if( open my $fh, "<", "recordings_m3u:$quality:$platform:cached" ) {
+				if( open my $file, "<", "channels_m3u:$quality:$platform:cached" ) {
+					my $response = HTTP::Response->new( 200, 'OK');
+					$response->header('Content-Type' => 'text/html'),
+					$c->send_file_response("channels_m3u:$quality:$platform:cached");
+					$c->close;
+					close $file;
+					unlink "recordings_m3u:$quality:$platform:cached";
+						
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Channel list resent to client - params: bandwidth=$quality, platform=$platform\n";
+					exit;
+				}	
+					
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Loading channels data\n";
+				
+				# URLs
+				my $channel_url = "http://geo.wilmaa.com/channels/basic/web_hls_de.json";
+				my $mapping_url = "https://resources.wilmaa.com/channelsOverview/channelMappings.json";
+				
+				# CHANNEL M3U REQUEST
+				my $channel_agent = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
+				my $channel_request  = HTTP::Request::Common::GET($channel_url);
+				my $channel_response = $channel_agent->request($channel_request);
+				
+				if( $channel_response->is_error ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Channel URL: Invalid response\n\n";
+					print "RESPONSE:\n\n" . $channel_response->content . "\n\n";
+					
+					my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+					$response->header('Content-Type' => 'text'),
+					$response->content("API ERROR: Invalid response on channel request");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				}
+				
+				# CHANNEL MAPPING REQUEST
+				my $mapping_agent = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
+				my $mapping_request  = HTTP::Request::Common::GET($mapping_url);
+				my $mapping_response = $mapping_agent->request($mapping_request);
+				
+				if( $mapping_response->is_error ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Mapping URL: Invalid response\n\n";
+					print "RESPONSE:\n\n" . $mapping_response->content . "\n\n";
+					
+					my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+					$response->header('Content-Type' => 'text'),
+					$response->content("API ERROR: Invalid response on channel request");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				}
+				
+				# READ JSON
+				my $ch_file    = decode_json($channel_response->content);
+				my $mapfile    = decode_json($mapping_response->content);
+				
+				if( not defined $ch_file or not defined $mapfile ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Failed to parse JSON file(s) (CH LIST)\n\n";
+					
+					my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+					$response->header('Content-Type' => 'text'),
+					$response->content("API ERROR: Failed to parse JSON file(s) (CH LIST)");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				}
+
+				# SET UP VALUES
+				my @channels     = @{ $ch_file->{"channelList"}{"channels"} };
+				my @categories   = @{ $ch_file->{"channelList"}{"defaults"}{"categories"} };
+				my @dolbysupport = @{ $mapfile->{"extraSettings"}{"dolbyDigital"} };
+				
+				# CREATE CHANNELS M3U
+				my $ch_m3u   = "#EXTM3U\n";
+				
+				foreach my $channel ( @channels ) {
+					my $chid   = $channel->{"id"};
+					my $name   = $channel->{"label"}{"name"};
+					my $cat    = $channel->{"label"}{"category"};
+					
+					foreach my $category ( @categories ) {
+						my $cat_id   = $category->{"id"};
+						my $cat_name = $category->{"languages"}[0]{"de"};
+						
+						if( $cat eq $cat_id ) {
+							$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $name . "\" group-title=\"" . $cat_name . "\" tvg-logo=\"https://resources.wilmaa.com/logos/single/dark/center/360x120px/" . $chid . ".png\", " . $name . "\n";
+							
+							my $dd_location;
+							
+							foreach my $dolbysupport ( @dolbysupport ) {
+								if( $dolbysupport eq $chid ) {
+									$dd_location = "true";
+								}
+							}
+						
+							if( defined $ffmpeg and defined $dolby and defined $audio2 and defined $dd_location ) {
+								$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+							} elsif( defined $ffmpeg and defined $dolby and defined $dd_location ) {
+								$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+							} elsif( defined $ffmpeg and defined $audio2 ) {
+								$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+							} elsif( defined $ffmpeg ) {
+								$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+							} elsif( defined $dolby and defined $audio2 and defined $dd_location ) {
+								$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\n";
+							} elsif( defined $dolby and defined $dd_location ) {
+								$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
+							} elsif( defined $audio2 ) {
+								$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\n";
+							} else {
+								$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+							}
+							
+							undef $dd_location;
+						}
+					}
+				}
+					
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'text', 'Charset' => 'utf8'),
+				$response->content(Encode::encode_utf8($ch_m3u));
+				$c->send_response($response);
+				$c->close;
+				
+				# CACHE PLAYLIST
+				open my $cachedfile, ">", "channels_m3u:$quality:$platform:cached";
+				print $cachedfile "$ch_m3u";
+				close $cachedfile;
+				
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Channel list sent to client - params: bandwidth=$quality, platform=$platform\n";
+				
+				# REMOVE CACHED PLAYLIST
+				sleep 1;
+				unlink "channels_m3u:$quality:$platform:cached";
+				exit;
+
+			
+			#
+			# ZATTOO RECORDING LIST
+			#
+			
+			} elsif( $filename eq "recordings.m3u" and $quality =~ /8000|5000|4999|3000|2999|1500/ and $platform =~ /hls|hls5/ and $provider ne "wilmaa.com" ) {
+				
+				# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
+				if( open my $file, "<", "recordings_m3u:$quality:$platform:cached" ) {
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
 					$c->send_file_response("recordings_m3u:$quality:$platform:cached");
 					$c->close;
+					close $file;
+					unlink "recordings_m3u:$quality:$platform:cached";
 						
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Recording list resent to client - params: bandwidth=$quality, platform=$platform\n";
 					exit;
@@ -1094,9 +1439,187 @@ sub http_child {
 				}
 				
 				# CACHE PLAYLIST
-				open my $fh, ">", "recordings_m3u:$quality:$platform:cached";
-				print $fh "$rec_m3u";
-				close $fh;
+				open my $cachedfile, ">", "recordings_m3u:$quality:$platform:cached";
+				print $cachedfile "$rec_m3u";
+				close $cachedfile;
+				
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'text', 'Charset' => 'utf8'),
+				$response->content(Encode::encode_utf8($rec_m3u));
+				$c->send_response($response);
+				$c->close;
+				
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Recording list sent to client - params: bandwidth=$quality, platform=$platform\n";
+				
+				# REMOVE CACHED PLAYLIST
+				sleep 1;
+				unlink "recordings_m3u:$quality:$platform:cached";
+				exit;
+			
+			
+			#
+			# WILMAA RECORDING LIST
+			#
+			
+			} elsif( $filename eq "recordings.m3u" and $quality =~ /8000|5000|4999|3000|2999|1500/ and $platform =~ /hls|hls5/ and $provider eq "wilmaa.com" and defined $w_user_id ) {
+				
+				# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
+				if( open my $file, "<", "recordings_m3u:$quality:$platform:cached" ) {
+					my $response = HTTP::Response->new( 200, 'OK');
+					$response->header('Content-Type' => 'text/html'),
+					$c->send_file_response("recordings_m3u:$quality:$platform:cached");
+					$c->close;
+					close $file;
+					unlink "recordings_m3u:$quality:$platform:cached";
+						
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Recording list resent to client - params: bandwidth=$quality, platform=$platform\n";
+					exit;
+				}	
+					
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Loading recordings data\n";
+				
+				# URLs
+				my $playlist_url  = "https://api.wilmaa.com/v3/w/users/$w_user_id/recordings/";
+				my $mapping_url   = "https://resources.wilmaa.com/channelsOverview/channelMappings.json";
+				
+				# RECORDING M3U REQUEST
+				my $playlist_agent = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
+				my $playlist_request  = HTTP::Request::Common::GET($playlist_url, 'x-wilmaa-session' => $session_token );
+				my $playlist_response = $playlist_agent->request($playlist_request);
+				
+				if( $playlist_response->is_error ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: No permission to use PVR mode\n";
+					
+					my $response = HTTP::Response->new( 403, 'FORBIDDEN');
+					$response->header('Content-Type' => 'text'),
+					$response->content("API ERROR: No permission to use PVR mode");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				}
+				
+				# CHANNEL MAPPING REQUEST
+				my $mapping_agent = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
+				my $mapping_request  = HTTP::Request::Common::GET($mapping_url);
+				my $mapping_response = $mapping_agent->request($mapping_request);
+				
+				if( $mapping_response->is_error ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Mapping URL: Invalid response\n\n";
+					print "RESPONSE:\n\n" . $mapping_response->content . "\n\n";
+					
+					my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+					$response->header('Content-Type' => 'text'),
+					$response->content("API ERROR: Invalid response on channel request");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				}
+				
+				# READ JSON
+				my $playlist_file = decode_json($playlist_response->content);
+				my $mapfile       = decode_json($mapping_response->content);
+				
+				
+				if( not defined $playlist_file or not defined $mapfile ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Failed to parse JSON file(s) (REC LIST)\n\n";
+					
+					my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+					$response->header('Content-Type' => 'text'),
+					$response->content("API ERROR: Failed to parse JSON file (REC LIST)");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				}
+				
+				# SET UP VALUES
+				my @rec_data     = @{ $playlist_file->{'data'} };
+				my @dolbysupport = @{ $mapfile->{"extraSettings"}{"dolbyDigital"} };
+				
+				if( not defined $playlist_file->{'data'}[0]{'epg_title'} ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: No recordings found\n";
+					
+					my $response = HTTP::Response->new( 404, 'NOT FOUND');
+					$response->header('Content-Type' => 'text'),
+					$response->content("API ERROR: No recordings found");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				} elsif( $playlist_file->{'data'}[0]{'status'} ne "COMPLETED" ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: No completed recordings found\n";
+					
+					my $response = HTTP::Response->new( 404, 'NOT FOUND');
+					$response->header('Content-Type' => 'text'),
+					$response->content("API ERROR: No completed recordings found");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				}
+				
+				# CREATE CHANNELS M3U
+				my $rec_m3u   = "#EXTM3U\n";
+				
+				foreach my $rec_data ( @rec_data ) {
+					my $name         = $rec_data->{'epg_title'};
+					my $cname        = $rec_data->{'channel_display_name'};
+					my $chid         = $rec_data->{'channel_id'};
+					my $record_start = $rec_data->{'start_utc'};
+					my $image        = $rec_data->{'epg_img_url'};
+					my $rid          = $rec_data->{'id'};
+					my $status       = $rec_data->{'status'};
+					
+					my $record_local = strftime "%d.%m.%Y %H:%M:%S", localtime($record_start);
+					
+					my $dd_location;
+							
+					foreach my $dolbysupport ( @dolbysupport ) {
+						if( $dolbysupport eq $chid ) {
+							$dd_location = "true";
+						}
+					}
+					
+					if( $status eq "COMPLETED" ) {
+						$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
+									
+						if( defined $ffmpeg and defined $dolby and defined $audio2 and defined $dd_location ) {
+							$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+						} elsif( defined $ffmpeg and defined $dolby and defined $dd_location ) {
+							$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+						} elsif( defined $ffmpeg and defined $audio2 ) {
+							$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+						} elsif( defined $ffmpeg ) {
+							$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+						} elsif( defined $dolby and defined $audio2 and defined $dd_location ) {
+							$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\n";
+						} elsif( defined $dolby and defined $dd_location ) {
+							$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
+						} elsif( defined $audio2 ) {
+							$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\n";
+						} else {
+							$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+						}
+					}
+				}
+					
+				# CACHE PLAYLIST
+				open my $cachedfile, ">", "recordings_m3u:$quality:$platform:cached";
+				print $cachedfile "$rec_m3u";
+				close $cachedfile;
 				
 				my $response = HTTP::Response->new( 200, 'OK');
 				$response->header('Content-Type' => 'text', 'Charset' => 'utf8'),
@@ -1111,6 +1634,16 @@ sub http_child {
 				unlink "recordings_m3u:$quality:$platform:cached";
 				exit;
 					
+			} else {
+				
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Invalid file request by client\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid file request by client\n");
+				$c->send_response($response);
+				$c->close;
+				exit;
+			
 			}
 
 		
@@ -1530,18 +2063,20 @@ sub http_child {
 		# PROVIDE CHANNEL M3U8
 		#
 		
-		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "live" ) {
+		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "live" and $provider ne "wilmaa.com" ) {
 			
 			#
-			# CONDITION: HOME
+			# ZATTOO CONDITION: HOME
 			#
 			
 			# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
-			if( open my $fh, "<", "$channel:$quality:$platform:cached" ) {
+			if( open my $file, "<", "$channel:$quality:$platform:cached" ) {
 				my $response = HTTP::Response->new( 200, 'OK');
 				$response->header('Content-Type' => 'text/html'),
 				$c->send_file_response("$channel:$quality:$platform:cached");
 				$c->close;
+				close $file;
+				unlink "$channel:$quality:$platform:cached";
 					
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Playlist resent to client\n";
 				exit;
@@ -1588,8 +2123,15 @@ sub http_child {
 				my $cookie_jar    = HTTP::Cookies->new;
 				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
 				$live_agent->cookie_jar($cookie_jar);
-
-				my $live_request  = HTTP::Request::Common::POST($live_url, [ 'stream_type' => $platform, 'https_watch_urls' => 'True', 'enable_eac3' => 'true', 'timeshift' => '10800', 'cast_stream_type' => $platform ]);
+				
+				my $live_request;
+				
+				if( $pin eq "NONE" ) {
+					$live_request  = HTTP::Request::Common::POST($live_url, [ 'stream_type' => $platform, 'https_watch_urls' => 'True', 'enable_eac3' => 'true', 'timeshift' => '10800', 'cast_stream_type' => $platform ]);
+				} else {
+					$live_request  = HTTP::Request::Common::POST($live_url, [ 'stream_type' => $platform, 'https_watch_urls' => 'True', 'enable_eac3' => 'true', 'timeshift' => '10800', 'youth_protection_pin' => $pin, 'cast_stream_type' => $platform ]);
+				}
+				
 				my $live_response = $live_agent->request($live_request);
 				
 				if( $live_response->is_error ) {
@@ -1710,9 +2252,9 @@ sub http_child {
 						my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" . $final_quality . "000\n" . $link_url;
 						
 						# CACHE PLAYLIST
-						open my $fh, ">", "$channel:$quality:$platform:cached";
-						print $fh "$m3u8";
-						close $fh;
+						open my $cachedfile, ">", "$channel:$quality:$platform:cached";
+						print $cachedfile "$m3u8";
+						close $cachedfile;
 						
 						my $response = HTTP::Response->new( 200, 'OK');
 						$response->header('Content-Type' => 'text/html'),
@@ -1782,8 +2324,8 @@ sub http_child {
 								$final_quality_audio = "t_track_audio_bw_256_num_3";
 								$final_codec = "avc1.4d4020,ec-3";
 							# AUDIO 2, NO DOLBY SUPPORT
-							} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" and $dolby eq "true" ) {
-								$final_quality_audio = "t_track_audio_bw_128_num_1";
+							} elsif( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" and $dolby eq "true" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_2";
 								$final_codec = "avc1.4d4020,mp4a.40.2";
 							# AUDIO 2 UNAVAILABLE, DOLBY SUPPORTED
 							} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $audio2 eq "true" and $dolby eq "true" ) {
@@ -1807,13 +2349,9 @@ sub http_child {
 							}
 						# USER WANTS 2ND STEREO AUDIO STREAM
 						} elsif( defined $audio2 ) {
-							# AUDIO 2, DOLBY SUPPORTED
-							if( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
+							# AUDIO 2 AVAILABLE
+							if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
 								$final_quality_audio = "t_track_audio_bw_128_num_2";
-								$final_codec = "avc1.4d4020,mp4a.40.2";
-							# AUDIO 2, NO DOLBY SUPPORT
-							} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" ) {
-								$final_quality_audio = "t_track_audio_bw_128_num_1";
 								$final_codec = "avc1.4d4020,mp4a.40.2";
 							# AUDIO 2 UNAVAILABLE
 							} else {
@@ -1841,9 +2379,9 @@ sub http_child {
 						my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
 						
 						# CACHE PLAYLIST
-						open my $fh, ">", "$channel:$quality:$platform:cached";
-						print $fh "$m3u8";
-						close $fh;
+						open my $cachedfile, ">", "$channel:$quality:$platform:cached";
+						print $cachedfile "$m3u8";
+						close $cachedfile;
 						
 						my $response = HTTP::Response->new( 200, 'OK');
 						$response->header('Content-Type' => 'text/html'),
@@ -1864,18 +2402,20 @@ sub http_child {
 			
 			}
 		
-		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "pvr" ) {
+		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "pvr" and $provider ne "wilmaa.com" ) {
 			
 			#
-			# CONDITION: WORLDWIDE
+			# ZATTOO CONDITION: WORLDWIDE
 			#
 			
 			# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
-			if( open my $fh, "<", "$channel:$quality:$platform:cached" ) {
+			if( open my $file, "<", "$channel:$quality:$platform:cached" ) {
 				my $response = HTTP::Response->new( 200, 'OK');
 				$response->header('Content-Type' => 'text/html'),
 				$c->send_file_response("$channel:$quality:$platform:cached");
 				$c->close;
+				close $file;
+				unlink "$channel:$quality:$platform:cached";
 					
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Playlist resent to client\n";
 				exit;
@@ -2026,7 +2566,14 @@ sub http_child {
 				
 				$recview_agent->cookie_jar($cookie_jar);
 
-				my $recview_request  = HTTP::Request::Common::POST($recview_url, ['stream_type' => $platform, 'enable_eac3' => 'true', 'https_watch_urls' => 'True', 'cast_stream_type' => $platform ]);
+				my $recview_request;
+				
+				if( $pin eq "NONE" ) {
+					$recview_request  = HTTP::Request::Common::POST($recview_url, ['stream_type' => $platform, 'enable_eac3' => 'true', 'https_watch_urls' => 'True', 'cast_stream_type' => $platform ]);
+				} else {
+					$recview_request  = HTTP::Request::Common::POST($recview_url, ['stream_type' => $platform, 'enable_eac3' => 'true', 'https_watch_urls' => 'True', 'youth_protection_pin' => $pin, 'cast_stream_type' => $platform ]);
+				}
+				
 				my $recview_response = $recview_agent->request($recview_request);
 				
 				my $link;
@@ -2223,9 +2770,9 @@ sub http_child {
 					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=$final_quality" . "000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality\&platform=hls\&zkey=$keyval";
 					
 					# CACHE PLAYLIST
-					open my $fh, ">", "$channel:$quality:$platform:cached";
-					print $fh "$m3u8";
-					close $fh;
+					open my $cachedfile, ">", "$channel:$quality:$platform:cached";
+					print $cachedfile "$m3u8";
+					close $cachedfile;
 					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
@@ -2298,8 +2845,8 @@ sub http_child {
 							$final_quality_audio = "t_track_audio_bw_256_num_3";
 							$final_codec = "avc1.4d4020,ec-3";
 						# AUDIO 2, NO DOLBY SUPPORT
-						} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" and $dolby eq "true" ) {
-							$final_quality_audio = "t_track_audio_bw_128_num_1";
+						} elsif( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" and $dolby eq "true" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_2";
 							$final_codec = "avc1.4d4020,mp4a.40.2";
 						# AUDIO 2 UNAVAILABLE, DOLBY SUPPORTED
 						} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $audio2 eq "true" and $dolby eq "true" ) {
@@ -2323,13 +2870,9 @@ sub http_child {
 						}
 					# USER WANTS 2ND STEREO AUDIO STREAM
 					} elsif( defined $audio2 ) {
-						# AUDIO 2, DOLBY SUPPORTED
-						if( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
-							$final_quality_audio = "t_track_audio_bw_128_num_2";
-							$final_codec = "avc1.4d4020,mp4a.40.2";
 						# AUDIO 2, NO DOLBY SUPPORT
-						} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" ) {
-							$final_quality_audio = "t_track_audio_bw_128_num_1";
+						if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_2";
 							$final_codec = "avc1.4d4020,mp4a.40.2";
 						# AUDIO 2 UNAVAILABLE
 						} else {
@@ -2358,9 +2901,9 @@ sub http_child {
 					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$audio\&platform=hls5\&zkey=$keyval\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\nhttp://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&platform=hls5\&zkey=$keyval";
 					
 					# CACHE PLAYLIST
-					open my $fh, ">", "$channel:$quality:$platform:cached";
-					print $fh "$m3u8";
-					close $fh;
+					open my $cachedfile, ">", "$channel:$quality:$platform:cached";
+					print $cachedfile "$m3u8";
+					close $cachedfile;
 					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
@@ -2376,22 +2919,222 @@ sub http_child {
 					exit;
 					
 				}
-					
-			}			
-					
-		
-		#
-		# PROVIDE RECORDING M3U8
-		#
-		
-		} elsif( defined $rec_ch and defined $quality and defined $platform ) {
+			
+			}
+			
+		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "live" and $provider eq "wilmaa.com" and $tv_mode eq "live" ) {
+			
+			#
+			# WILMAA CONDITION: HOME
+			#		
 			
 			# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
-			if( open my $fh, "<", "$rec_ch:$quality:$platform:cached" ) {
+			if( open my $file, "<", "$channel:$quality:$platform:cached" ) {
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'text/html'),
+				$c->send_file_response("$channel:$quality:$platform:cached");
+				$c->close;
+				close $file;
+				unlink "$channel:$quality:$platform:cached";
+					
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Playlist resent to client\n";
+				exit;
+			}	
+				
+			# CHECK CONDITIONS
+			if( $platform ne "hls5" ) {
+				
+				# DO NOT PROCESS: WRONG PLATFORM
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Invalid platform\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid platform");
+				$c->send_response($response);
+				$c->close;
+				exit;
+				
+			} elsif( $quality ne "8000" and $quality ne "4999" and $quality ne "5000" and $quality ne "3000" and $quality ne "2999" and $quality ne "1500" ) {
+				
+				# DO NOT PROCESS: WRONG QUALITY
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Invalid bandwidth\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid bandwidth");
+				$c->send_response($response);
+				$c->close;
+				exit;
+				
+			} elsif( defined $channel ) {
+					
+				# REQUEST PLAYLIST URL
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Loading Live URL\n";
+				my $live_url = "https://streams.wilmaa.com/m3u8/get?channelId=$channel";
+				
+				my $live_agent = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+					
+				my $live_request  = HTTP::Request::Common::GET($live_url);
+				my $live_response = $live_agent->request($live_request);
+					
+				if( $live_response->is_error ) {
+					
+					# DO NOT PROCESS: WRONG CHANNEL ID
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Invalid Channel ID\n";
+					print "RESPONSE:\n\n" . $live_response->content . "\n\n";
+					my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+					$response->header('Content-Type' => 'text/html'),
+					$response->content("API ERROR: Invalid Channel ID");
+					$c->send_response($response);
+					$c->close;
+					exit;
+						
+				} else {
+					
+					my $link  = $live_response->content;
+					my $link2 = $live_response->content;
+					my $uri   = $live_response->base;
+						
+					$uri     =~ s/(.*)(\/.*.m3u8.*)/$1/g;
+						
+					if( $platform eq "hls5" ) {
+						
+						#
+						# HLS5
+						#
+							
+						# SET FINAL VIDEO PARAMS
+						my $final_quality_video;
+						my $final_bandwidth;
+						my $final_resolution;
+						my $final_framerate;
+							
+						if( $quality eq "8000" ) {
+							$final_quality_video = "7800";
+							$final_bandwidth  = "8000000";
+							$final_resolution = "1920x1080";
+							$final_framerate  = "50";
+						} elsif( $quality eq "4999" ) {
+							$final_quality_video = "4799";
+							$final_bandwidth  = "4999000";
+							$final_resolution = "1920x1080";
+							$final_framerate  = "25";
+						} elsif( $quality eq "5000" ) {
+							$final_quality_video = "4800";
+							$final_bandwidth  = "5000000";
+							$final_resolution = "1280x720";
+							$final_framerate  = "50";
+						} elsif( $quality eq "3000" ) {
+							$final_quality_video = "2800";
+							$final_bandwidth  = "3000000";
+							$final_resolution = "1280x720";
+							$final_framerate  = "25";
+						} elsif( $quality eq "2999" ) {
+							$final_quality_video = "2799";
+							$final_bandwidth  = "2999000";
+							$final_resolution = "1024x576";
+							$final_framerate  = "50";
+						} elsif( $quality eq "1500" ) {
+							$final_quality_video = "1300";
+							$final_bandwidth  = "1500000";
+							$final_resolution = "768x432";
+							$final_framerate  = "25";
+						}
+							
+						# SET FINAL AUDIO CODEC
+						my $final_quality_audio;
+						my $final_codec;
+							
+						# USER WANTS 2ND DOLBY AUDIO STREAM
+						if( defined $dolby and defined $audio2 ) {
+							# AUDIO 2, DOLBY SUPPORTED
+							if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" and $dolby eq "true" ) {
+								$final_quality_audio = "t_track_audio_bw_256_num_3";
+								$final_codec = "avc1.4d4020,ec-3";
+							# AUDIO 2 UNAVAILABLE, DOLBY SUPPORTED
+							} else {
+								$final_quality_audio = "t_track_audio_bw_256_num_1";
+								$final_codec = "avc1.4d4020,ec-3";
+							}
+						# USER WANTS 1ST DOLBY AUDIO STREAM
+						} elsif( defined $dolby ) {
+							# AUDIO 1, DOLBY SUPPORTED
+							$final_quality_audio = "t_track_audio_bw_256_num_1";
+							$final_codec = "avc1.4d4020,ec-3";
+						# USER WANTS 2ND STEREO AUDIO STREAM
+						} elsif( defined $audio2 ) {
+							# AUDIO 2
+							if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_2";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+							# AUDIO 2 UNAVAILABLE
+							} else {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+							}
+						# USER WANTS 1ST STEREO AUDIO STREAM
+						} else {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+						}
+							
+						# EDIT PLAYLIST
+						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Editing M3U8\n";
+						$link        =~ /(.*)(t_track_audio_bw_128_num_0)(.*?z32=)(.*)"/m;
+						my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $4;
+						my $link_audio_url = $uri . "/" . $final_quality_audio . $3 . $4;
+							
+						$link_video_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
+						$link_video_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
+							
+						$link_audio_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
+						$link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
+						
+						my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+						
+						# CACHE PLAYLIST
+						open my $cachedfile, ">", "$channel:$quality:$platform:cached";
+						print $cachedfile "$m3u8";
+						close $cachedfile;
+							
+						my $response = HTTP::Response->new( 200, 'OK');
+						$response->header('Content-Type' => 'text/html'),
+						$response->content($m3u8);
+						$c->send_response($response);
+						$c->close;
+							
+						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Playlist sent to client\n";
+							
+						# REMOVE CACHED PLAYLIST
+						sleep 1;
+						unlink "$channel:$quality:$platform:cached";
+						exit;
+						
+					}
+					
+				}
+			
+			}	
+		
+		#
+		# PROVIDE ZATTOO RECORDING M3U8
+		#
+		
+		} elsif( defined $rec_ch and defined $quality and defined $platform and $provider ne "wilmaa.com" ) {
+			
+			# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
+			if( open my $file, "<", "$rec_ch:$quality:$platform:cached" ) {
 				my $response = HTTP::Response->new( 200, 'OK');
 				$response->header('Content-Type' => 'text/html'),
 				$c->send_file_response("$rec_ch:$quality:$platform:cached");
 				$c->close;
+				close $file;
+				unlink "$rec_ch:$quality:$platform:cached";
 					
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Playlist resent to client\n";
 				exit;
@@ -2412,8 +3155,15 @@ sub http_child {
 			my $cookie_jar    = HTTP::Cookies->new;
 			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
 			$recchview_agent->cookie_jar($cookie_jar);
-
-			my $recchview_request  = HTTP::Request::Common::POST($recchview_url, ['stream_type' => $platform, 'enable_eac3' => 'true', 'https_watch_urls' => 'True', 'cast_stream_type' => $platform ]);
+			
+			my $recchview_request;
+			
+			if( $pin eq "NONE" ) {
+				$recchview_request  = HTTP::Request::Common::POST($recchview_url, ['stream_type' => $platform, 'enable_eac3' => 'true', 'https_watch_urls' => 'True', 'cast_stream_type' => $platform ]);
+			} else {
+				$recchview_request  = HTTP::Request::Common::POST($recchview_url, ['stream_type' => $platform, 'enable_eac3' => 'true', 'https_watch_urls' => 'True', 'youth_protection_pin' => $pin, 'cast_stream_type' => $platform ]);
+			}
+			
 			my $recchview_response = $recchview_agent->request($recchview_request);
 			
 			# CHECK CONDITIONS
@@ -2552,9 +3302,9 @@ sub http_child {
 					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" . $final_quality . "000\n" . $link_url;
 					
 					# CACHE PLAYLIST
-					open my $fh, ">", "$rec_ch:$quality:$platform:cached";
-					print $fh "$m3u8";
-					close $fh;
+					open my $cachedfile, ">", "$rec_ch:$quality:$platform:cached";
+					print $cachedfile "$m3u8";
+					close $cachedfile;
 					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
@@ -2624,8 +3374,8 @@ sub http_child {
 							$final_quality_audio = "t_track_audio_bw_256_num_3";
 							$final_codec = "avc1.4d4020,ec-3";
 						# AUDIO 2, NO DOLBY SUPPORT
-						} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" and $dolby eq "true" ) {
-							$final_quality_audio = "t_track_audio_bw_128_num_1";
+						} elsif( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" and $dolby eq "true" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_2";
 							$final_codec = "avc1.4d4020,mp4a.40.2";
 						# AUDIO 2 UNAVAILABLE, DOLBY SUPPORTED
 						} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $audio2 eq "true" and $dolby eq "true" ) {
@@ -2649,13 +3399,9 @@ sub http_child {
 						}
 					# USER WANTS 2ND STEREO AUDIO STREAM
 					} elsif( defined $audio2 ) {
-						# AUDIO 2, DOLBY SUPPORTED
-						if( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
+						# AUDIO 2 AVAILABLE
+						if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
 							$final_quality_audio = "t_track_audio_bw_128_num_2";
-							$final_codec = "avc1.4d4020,mp4a.40.2";
-						# AUDIO 2, NO DOLBY SUPPORT
-						} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" ) {
-							$final_quality_audio = "t_track_audio_bw_128_num_1";
 							$final_codec = "avc1.4d4020,mp4a.40.2";
 						# AUDIO 2 UNAVAILABLE
 						} else {
@@ -2680,9 +3426,9 @@ sub http_child {
 					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
 					
 					# CACHE PLAYLIST
-					open my $fh, ">", "$rec_ch:$quality:$platform:cached";
-					print $fh "$m3u8";
-					close $fh;
+					open my $cachedfile, ">", "$rec_ch:$quality:$platform:cached";
+					print $cachedfile "$m3u8";
+					close $cachedfile;
 					
 					my $response = HTTP::Response->new( 200, 'OK');
 					$response->header('Content-Type' => 'text/html'),
@@ -2700,7 +3446,338 @@ sub http_child {
 				}
 			
 			}
-
+		
+		
+		#
+		# PROVIDE WILMAA RECORDING M3U8
+		#
+		
+		} elsif( defined $rec_ch and defined $quality and defined $platform and $provider eq "wilmaa.com" and defined $w_user_id ) {
+			
+			# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
+			if( open my $file, "<", "$rec_ch:$quality:$platform:cached" ) {
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'text/html'),
+				$c->send_file_response("$rec_ch:$quality:$platform:cached");
+				$c->close;
+				close $file;
+				unlink "$rec_ch:$quality:$platform:cached";
+					
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Playlist resent to client\n";
+				exit;
+			}	
+			
+			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Loading PVR URL\n";
+			my $recchview_url = "https://api.wilmaa.com/v3/w/users/$w_user_id/recordings/$rec_ch/play?https=true";
+				
+			my $recchview_agent  = LWP::UserAgent->new(
+				ssl_opts => {
+					SSL_verify_mode => $ssl_mode,
+					verify_hostname => $ssl_mode,
+					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+				},
+				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+			);
+			
+			my $recchview_request  = HTTP::Request::Common::GET($recchview_url, 'x-wilmaa-session' => $session_token );
+			
+			my $recchview_response = $recchview_agent->request($recchview_request);
+			
+			# CHECK CONDITIONS
+			if( $recchview_response->is_error ) {
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Invalid recording ID\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid recording ID");
+				$c->send_response($response);
+				$c->close;
+				exit;
+			
+			} elsif( $platform ne "hls5" ) {
+				
+				# DO NOT PROCESS: WRONG PLATFORM
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Invalid platform\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid platform");
+				$c->send_response($response);
+				$c->close;
+				exit;
+			
+			} elsif( $quality ne "8000" and $quality ne "4999" and $quality ne "5000" and $quality ne "3000" and $quality ne "2999" and $quality ne "1500" ) {
+				
+				# DO NOT PROCESS: WRONG QUALITY
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Invalid bandwidth\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid bandwidth");
+				$c->send_response($response);
+				$c->close;
+				exit;
+			
+			} elsif( defined $rec_ch ) {
+				
+				my $recchview_file = decode_json( $recchview_response->content );
+				
+				if( not defined $recchview_file ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $channel | $quality | $platform - ERROR: Failed to parse JSON file (REC)\n\n";
+							
+					my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+					$response->header('Content-Type' => 'text'),
+					$response->content("API ERROR: Failed to parse JSON file (REC)");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				}
+				
+				my $recch_url = $recchview_file->{'data'}[0]{'play_url'};
+					
+				# LOAD PLAYLIST URL
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Loading M3U8\n";
+				
+				# LOAD PLAYLIST URL
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Loading M3U8\n";
+				
+				my $recchurl_agent  = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+					
+				my $recchurl_request  = HTTP::Request::Common::GET($recch_url);
+				my $recchurl_response = $recchurl_agent->request($recchurl_request);
+				
+				if( $recchurl_response->is_error ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Failed to load M3U8\n\n";
+					print "RESPONSE:\n\n" . $recchurl_response->content . "\n\n";
+					my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+					$response->header('Content-Type' => 'text/html'),
+					$response->content("API ERROR: Failed to load M3U8 (PVR REC)");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				}
+				
+				my $link  = $recchurl_response->content;
+				my $link2 = $recchurl_response->content;
+				my $uri   = $recchurl_response->base;
+							
+				$uri      =~ s/(.*)(\/.*.m3u8.*)/$1/g;
+				
+				if( $platform eq "hls5" ) {
+						
+					#
+					# HLS5
+					#
+						
+					# SET FINAL VIDEO PARAMS
+					my $final_quality_video;
+					my $final_bandwidth;
+					my $final_resolution;
+					my $final_framerate;
+						
+					if( $quality eq "8000" ) {
+						$final_quality_video = "7800";
+						$final_bandwidth  = "8000000";
+						$final_resolution = "1920x1080";
+						$final_framerate  = "50";
+					} elsif( $quality eq "4999" ) {
+						$final_quality_video = "4799";
+						$final_bandwidth  = "4999000";
+						$final_resolution = "1920x1080";
+						$final_framerate  = "25";
+					} elsif( $quality eq "5000" ) {
+						$final_quality_video = "4800";
+						$final_bandwidth  = "5000000";
+						$final_resolution = "1280x720";
+						$final_framerate  = "50";
+					} elsif( $quality eq "3000" ) {
+						$final_quality_video = "2800";
+						$final_bandwidth  = "3000000";
+						$final_resolution = "1280x720";
+						$final_framerate  = "25";
+					} elsif( $quality eq "2999" ) {
+						$final_quality_video = "2799";
+						$final_bandwidth  = "2999000";
+						$final_resolution = "1024x576";
+						$final_framerate  = "50";
+					} elsif( $quality eq "1500" ) {
+						$final_quality_video = "1300";
+						$final_bandwidth  = "1500000";
+						$final_resolution = "768x432";
+						$final_framerate  = "25";
+					}
+						
+					# SET FINAL AUDIO CODEC
+					my $final_quality_audio;
+					my $final_codec;
+						
+					# USER WANTS 2ND DOLBY AUDIO STREAM
+					if( defined $dolby and defined $audio2 ) {
+						# AUDIO 2, DOLBY SUPPORTED
+						if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" and $dolby eq "true" ) {
+							$final_quality_audio = "t_track_audio_bw_256_num_3";
+							$final_codec = "avc1.4d4020,ec-3";
+						# AUDIO 2 UNAVAILABLE, DOLBY SUPPORTED
+						} else {
+							$final_quality_audio = "t_track_audio_bw_256_num_1";
+							$final_codec = "avc1.4d4020,ec-3";
+						}
+					# USER WANTS 1ST DOLBY AUDIO STREAM
+					} elsif( defined $dolby ) {
+						# AUDIO 1, DOLBY SUPPORTED
+						$final_quality_audio = "t_track_audio_bw_256_num_1";
+						$final_codec = "avc1.4d4020,ec-3";
+					# USER WANTS 2ND STEREO AUDIO STREAM
+					} elsif( defined $audio2 ) {
+						# AUDIO 2
+						if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_2";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+						# AUDIO 2 UNAVAILABLE
+						} else {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+						}
+					# USER WANTS 1ST STEREO AUDIO STREAM
+					} else {
+						$final_quality_audio = "t_track_audio_bw_128_num_0";
+						$final_codec = "avc1.4d4020,mp4a.40.2";
+					}
+						
+					# EDIT PLAYLIST
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Editing M3U8\n";
+					$link        =~ /(.*)(t_track_audio_bw_128_num_0)(.*?z32=)(.*)"/m;
+					my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $4;
+					my $link_audio_url = $uri . "/" . $final_quality_audio . $3 . $4;
+					
+					$link_video_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-pvr.zahs.tv/g;
+					$link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-pvr.zahs.tv/g;
+					
+					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+					
+					# CACHE PLAYLIST
+					open my $cachedfile, ">", "$rec_ch:$quality:$platform:cached";
+					print $cachedfile "$m3u8";
+					close $cachedfile;
+					
+					my $response = HTTP::Response->new( 200, 'OK');
+					$response->header('Content-Type' => 'text/html'),
+					$response->content($m3u8);
+					$c->send_response($response);
+					$c->close;
+						
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Playlist sent to client\n";
+					
+					# REMOVE CACHED PLAYLIST
+					sleep 1;
+					unlink "$rec_ch:$quality:$platform:cached";
+					exit;
+				
+				}
+			
+			}		
+		
+		
+		#
+		# REMOVE ZATTOO RECORDING
+		#
+		
+		} elsif( defined $rec_ch and $provider ne "wilmaa.com" and defined $remove) {
+			
+			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Removing record\n";
+				
+			# URL
+			my $remove_url   = "https://$provider/zapi/playlist/remove";
+				
+			# COOKIE
+			my $cookie_jar    = HTTP::Cookies->new;
+			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
+			
+			# REMOVE REQUEST
+			my $remove_agent = LWP::UserAgent->new(
+				ssl_opts => {
+					SSL_verify_mode => $ssl_mode,
+					verify_hostname => $ssl_mode,
+					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+				},
+				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+			);
+				
+			$remove_agent->cookie_jar($cookie_jar);
+			my $remove_request  = HTTP::Request::Common::POST($remove_url, [ 'recording_id' => $rec_ch ]);
+			my $remove_response = $remove_agent->request($remove_request);
+			
+			if( $remove_response->is_error ) {
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Remove URL: Invalid response\n\n";
+				print "RESPONSE:\n\n" . $remove_response->content . "\n\n";
+				
+				my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+				$response->header('Content-Type' => 'text'),
+				$response->content("API ERROR: Invalid response on remove request");
+				$c->send_response($response);
+				$c->close;
+				exit;
+			} elsif( $remove_response->is_success ) {
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "SUCCESS: Recording removed\n\n";
+				
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'text'),
+				$response->content("SUCCESS: Recording removed");
+				$c->send_response($response);
+				$c->close;
+				exit;
+			}
+			
+		
+		#
+		# REMOVE WILMAA RECORDING
+		#
+		
+		} elsif( defined $rec_ch and $provider eq "wilmaa.com" and defined $w_user_id and defined $remove) {
+			
+			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Removing record\n";
+				
+			# URL
+			my $remove_url   = "https://api.wilmaa.com/v3/w/users/$w_user_id/recordings/$rec_ch";
+			
+			# REMOVE REQUEST
+			my $remove_agent = LWP::UserAgent->new(
+				ssl_opts => {
+					SSL_verify_mode => $ssl_mode,
+					verify_hostname => $ssl_mode,
+					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+				},
+				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+			);
+				
+			my $remove_request  = HTTP::Request::Common::DELETE($remove_url, 'x-wilmaa-session' => $session_token );
+			my $remove_response = $remove_agent->request($remove_request);
+			
+			if( $remove_response->is_error ) {
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Remove URL: Invalid response\n\n";
+				print "RESPONSE:\n\n" . $remove_response->content . "\n\n";
+				
+				my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+				$response->header('Content-Type' => 'text'),
+				$response->content("API ERROR: Invalid response on remove request");
+				$c->send_response($response);
+				$c->close;
+				exit;
+			} elsif( $remove_response->is_success ) {
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "SUCCESS: Recording removed\n\n";
+				
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'text'),
+				$response->content("SUCCESS: Recording removed");
+				$c->send_response($response);
+				$c->close;
+				exit;
+			}
+			
 		
 		#
 		# INVALID REQUEST

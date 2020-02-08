@@ -6,15 +6,18 @@ This API provides channel playlists to playback streams on all compatible device
 
 #### Zattoo Unlimited: Advantages
 * Ad free channel switch, unlimited streaming on big screens (also in Zattoo Free)
+* Watch Zattoo streams anonymously (Wilmaa)
 * tvHeadend: Set PVR timers, unrestricted timeshift mode (also in Zattoo Free/Premium)
 * All devices with M3U playlist support can handle Zattoo streams
 * Download Zattoo recordings to local/external storage (watch recordings offline on all devices)
-* DE+CH: Watch Live TV without VPN/Proxy (Premium/Ultimate subscription required)
+* Download Wilmaa recordings worldwide to local/external storage (also in Wilmaa Free)
+* DE+CH: Watch Live TV without VPN/Proxy (Zattoo Premium/Ultimate subscription required)
 * DE+CH: Choose your bandwidth on your own (API supports streams up to Full HD)
 * Choose the Zattoo server on your own (better support for DNS services, use Zattoo DE+CH simultaneously)
 
 #### The following providers (domain names) are supported:
 * Zattoo: zattoo.com
+* Wilmaa: wilmaa.com
 * 1&1 TV: www.1und1.tv
 * swb TV: tvonline.swb-gruppe.de
 * NetCologne: nettv.netcologne.de
@@ -83,13 +86,13 @@ sudo cpan install utf8
 mkdir ~/telerising
 
 # Download the .zip file and extract the files into your folder:
-wget https://github.com/sunsettrack4/telerising/archive/v0.2.6.zip
+wget https://github.com/sunsettrack4/telerising/archive/v0.2.7.zip
 
 # Unzip the file:
-unzip v0.2.6.zip
+unzip v0.2.7.zip
 
 # Move all script files to the created folder
-mv ~/telerising-0.2.6/* ~/telerising/
+mv ~/telerising-0.2.7/* ~/telerising/
 
 # Set system-wide permissions to the folder and its related files
 sudo chmod 0777 ~/telerising
@@ -103,7 +106,7 @@ nano userfile.json
 perl zattoo.pl & disown
 ```
 #### Login file to be placed in script folder
-The variables "interface", "server" and "ffmpeg_lib" are optional.
+The variables "provider", "login" and "password" are required values, the other ones are optional.
 ```
 {
   "provider": "zattoo.com",
@@ -113,7 +116,8 @@ The variables "interface", "server" and "ffmpeg_lib" are optional.
   "server": "fr5-0",
   "ffmpeg_lib": "/usr/bin/ffmpeg",
   "port": "8080",
-  "ssl_mode": "1"
+  "ssl_mode": "1",
+  "youth_protection_pin": "1234"
 }
 
 ```
@@ -173,12 +177,13 @@ platform=hls - for: VLC, IPTV Simple
 platform=hls5 - for: ffmpeg, tvHeadend
 ```
 
-#### Additional strings (optional, can be combined)
+#### Additional strings (optional, * can be combined)
 ```
-favorites=true - create M3U with favorite channels only
-ffmpeg=true - create pipe:// references to be used for tvHeadend
-dolby=true - use Dolby audio (HLS5 only)
-audio2=true - use 2nd audio stream (HLS5 only)
+favorites=true * - create M3U with favorite channels only (Zattoo)
+ffmpeg=true * - create pipe:// references to be used for tvHeadend
+dolby=true * - use Dolby audio (HLS5 only)
+audio2=true * - use 2nd audio stream (HLS5 only)
+remove=true - remove recording
 ```
 
 #### Custom server list
@@ -210,6 +215,12 @@ zba6-2
 1und1-hhb1000-2
 1und1-hhb1000-3
 1und1-hhb1000-4
+1und1-dus1901-1
+1und1-dus1901-2
+1und1-dus1901-3
+1und1-dus1901-4
+1und1-ess1901-1
+1und1-ess1901-2
 matterlau1-0
 matterlau1-1
 matterzrh1-0
