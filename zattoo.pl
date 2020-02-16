@@ -24,8 +24,11 @@ unlink "log.txt";
 open (STDOUT, "| tee -ai log.txt");
 
 print "\n=======================\n";
-print   " TELERISING API v0.2.7 \n";
+print   " TELERISING API v0.2.8 \n";
 print   "=======================\n\n";
+
+print "(c) 2019-2020 Jan-Luca Neumann (sunsettrack4)\n";
+print "Please donate to support my work: https://paypal.me/sunsettrack4\n\n";
 
 use strict;
 use warnings;
@@ -74,12 +77,16 @@ sub login_process {
 			}
 
 			# SET LOGIN PARAMS
-			my $userfile     = decode_json($json);
+			my $userfile;
+			
+			eval{
+				$userfile     = decode_json($json);
+			};
 			
 			if( not defined $userfile ) {
-				print "ERROR: Unable to parse login data\n\n";
+				print "ERROR: Unable to parse user data\n\n";
 				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
-				print $error_file "ERROR: Unable to parse login data";
+				print $error_file "ERROR: Unable to parse user data";
 				close $error_file;
 				exit;
 			}
@@ -88,6 +95,7 @@ sub login_process {
 			my $login_mail   = $userfile->{'login'};
 			my $login_passwd = $userfile->{'password'};
 			my $interface    = $userfile->{'interface'};
+			my $customip     = $userfile->{'address'};
 			my $zserver      = $userfile->{'server'};
 			my $ffmpeglib    = $userfile->{'ffmpeg_lib'};
 			my $port         = $userfile->{'port'};
@@ -109,14 +117,51 @@ sub login_process {
 					close $error_file;
 					exit;
 				}
+			} elsif( $provider eq "wilmaa.com" ) {
+				if( not defined $login_mail and defined $login_passwd ) {
+					print "ERROR: Unable to retrieve complete login data\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "ERROR: Unable to retrieve complete login data";
+					close $error_file;
+					exit;
+				} elsif( defined $login_mail and not defined $login_passwd ) {
+					print "ERROR: Unable to retrieve complete login data\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "ERROR: Unable to retrieve complete login data";
+					close $error_file;
+					exit;
+				}
 			}
 			
 			# SET DEFAULT VALUES
-			if( not defined $interface ) {
+			if( not defined $interface and not defined $customip ) {
 				$interface = "";
-			} elsif( $interface ne "" ) {
-				print "NOTICE: Custom interface \"$interface\" will be used.\n\n";
-			}	
+				$customip  = "";
+			} elsif( defined $customip ) {
+				if( $customip ne "" ) {
+					$interface = "";
+					print "NOTICE: Custom IP address or domain \"$customip\" will be used.\n\n";
+				} elsif( defined $interface ) {
+					if( $interface ne "" ) {
+						$customip = "";
+						print "NOTICE: Custom interface \"$interface\" will be used.\n\n";
+					} else {
+						$customip  = "";
+						$interface = "";
+					}
+				} else {
+					$customip  = "";
+					$interface = "";
+				}
+			} elsif( defined $interface ) {
+				if( $interface ne "" ) {
+					$customip = "";
+					print "NOTICE: Custom interface \"$interface\" will be used.\n\n";
+				} else {
+					$customip  = "";
+					$interface = "";
+				}
+			}
 			
 			if( not defined $zserver ) {
 				$zserver = "fr5-0";
@@ -186,11 +231,61 @@ sub login_process {
 				# WILMAA
 				#
 				
-				# LOOKUP IP ADDRESS
-				my $geocheck = get("https://ipapi.co/json");
-				my $local_ip = decode_json($geocheck);
-				my $country_code = $local_ip->{"country_code"};
+				# LOOKUP IP ADDRESS VIA CHANNEL M3U UPDATE TIME
+				
+				# URLs
+				my $channel_url = "http://geo.wilmaa.com/channels/basic/web_hls_de.json";
+				
+				# CHANNEL M3U REQUEST
+				my $channel_agent = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
+				my $channel_request  = HTTP::Request::Common::GET($channel_url);
+				my $channel_response = $channel_agent->request($channel_request);
+				
+				if( $channel_response->is_error ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: IP lookup: Invalid response\n\n";
+					print "RESPONSE:\n\n" . $channel_response->content . "\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "ERROR: IP lookup: Invalid response";
+					close $error_file;
+					exit;
+				}
+				
+				# READ JSON
+				my $ch_file;
+				
+				eval{
+					$ch_file = decode_json($channel_response->content);
+				};
+				
+				if( not defined $ch_file ) {
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Failed to parse JSON file(s) (IP LOOKUP)\n\n";
+					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "ERROR: Failed to parse JSON file(s) (IP LOOKUP)";
+					close $error_file;
+					exit;
+				}
+				
+				my $m3u_date = $ch_file->{"channelList"}{"published_at"};
+				my $country_code;
 				my $tv_mode;
+				
+				if( defined $m3u_date ) {
+					if( $m3u_date eq "2018-04-05 14:52:02" ) {
+						$country_code = "DE";
+					} else {
+						$country_code = "CH";
+					}
+				} else {
+					$country_code = "DE";
+				}
 				
 				if( $country_code ne "CH" and defined $login_mail and defined $login_passwd ) {
 					print "--- YOUR ACCOUNT TYPE: WILMAA ---\n\n";
@@ -312,19 +407,21 @@ sub login_process {
 					
 					# CREATE FILE
 					open my $session_file, ">", "session.json" or die "UNABLE TO CREATE SESSION FILE!\n\n";
-					print $session_file "{\"provider\":\"$provider\",\"tv_mode\":\"$tv_mode\",\"wilmaa_user_id\":\"$login_user\",\"session_token\":\"$session_token\",\"interface\":\"$interface\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"ssl_mode\":\"$ssl_mode\"}";
+					print $session_file "{\"provider\":\"$provider\",\"tv_mode\":\"$tv_mode\",\"wilmaa_user_id\":\"$login_user\",\"session_token\":\"$session_token\",\"interface\":\"$interface\",\"address\":\"$customip\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"ssl_mode\":\"$ssl_mode\"}";
 					close $session_file;
 					
 					sleep 86400;
+					unlink "log.txt";
 				
 				}
 				
 				# CREATE FILE
 				open my $session_file, ">", "session.json" or die "UNABLE TO CREATE SESSION FILE!\n\n";
-				print $session_file "{\"provider\":\"$provider\",\"tv_mode\":\"$tv_mode\",\"interface\":\"$interface\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"ssl_mode\":\"$ssl_mode\"}";
+				print $session_file "{\"provider\":\"$provider\",\"tv_mode\":\"$tv_mode\",\"interface\":\"$interface\",\"address\":\"$customip\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"ssl_mode\":\"$ssl_mode\"}";
 				close $session_file;
 				
 				sleep 86400;
+				unlink "log.txt";
 				
 			} else {
 				
@@ -460,7 +557,11 @@ sub login_process {
 				$login_token       =~ s/(.*)(beaker.session.id=)(.*)(; Path.*)/$3/g;
 
 				# ANALYSE ACCOUNT
-				my $analyse_login  = decode_json($login_response->content);
+				my $analyse_login;
+				
+				eval{
+					$analyse_login = decode_json($login_response->content);
+				};
 
 				if( not defined $analyse_login ) {
 					print "ERROR: Unable to parse user data\n\n";
@@ -559,10 +660,11 @@ sub login_process {
 				
 				# CREATE FILE
 				open my $session_file, ">", "session.json" or die "UNABLE TO CREATE SESSION FILE!\n\n";
-				print $session_file "{\"provider\":\"$provider\",\"session_token\":\"$session_token\",\"powerid\":\"$powerid\",\"tv_mode\":\"$tv_mode\",\"country\":\"$country\",\"interface\":\"$interface\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"pin\":\"$pin\",\"ssl_mode\":\"$ssl_mode\"}";
+				print $session_file "{\"provider\":\"$provider\",\"session_token\":\"$session_token\",\"powerid\":\"$powerid\",\"tv_mode\":\"$tv_mode\",\"country\":\"$country\",\"interface\":\"$interface\",\"address\":\"$customip\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"pin\":\"$pin\",\"ssl_mode\":\"$ssl_mode\"}";
 				close $session_file;
 				
 				sleep 86400;
+				unlink "log.txt";
 			
 			}
 		
@@ -606,7 +708,11 @@ my $json_file;
 }
 	
 # READ JSON
-my $sessiondata = decode_json($json_file);
+my $sessiondata;
+
+eval{
+	$sessiondata = decode_json($json_file);
+};
 	
 if( not defined $sessiondata ) {
 	print "ERROR: Failed to parse JSON session file.\n\n";
@@ -614,11 +720,18 @@ if( not defined $sessiondata ) {
 }
 		
 # SET INTERFACE PARAMS
+my $address   = $sessiondata->{"address"};
 my $interface = $sessiondata->{"interface"};
 my $port      = $sessiondata->{"port"};
 
 my $hostipchecker;
 my $hostip;
+
+if( defined $address ) {
+	if( $address eq "" ) {
+		undef $address;
+	}
+}
 
 if( defined $interface ) {
 	if( $interface eq "" ) {
@@ -626,7 +739,11 @@ if( defined $interface ) {
 	}
 }
 
-if( defined $interface ) {
+if( defined $address ) {
+
+	$hostip = $address;
+
+} elsif( defined $interface ) {
 	
 	# USE CUSTOM INTERFACE
 	$hostipchecker = IO::Interface::Simple->new( "$interface" );
@@ -674,7 +791,7 @@ my $d = HTTP::Daemon->new(
     Reuse => 1,
 	ReuseAddr => 1,
 	ReusePort => $port,
-) or die "API CANNOT BE STARTED!\n\n";
+) or die "API CANNOT BE STARTED!\nPlease recheck your IP/domain/port configuration.\n\n";
 
 print "API STARTED!\n\n";
 print "Host IP address: $hostip:$port\n\n";
@@ -780,7 +897,11 @@ sub http_child {
 		}
 		
 		# READ JSON
-		my $session_data = decode_json($json);
+		my $session_data;
+		
+		eval{
+			$session_data = decode_json($json);
+		};
 		
 		if( not defined $session_data ) {
 			print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Failed to parse JSON file (SESSION)\n\n";
@@ -919,9 +1040,15 @@ sub http_child {
 				}
 				
 				# READ JSON
-				my $ch_file    = decode_json($channel_response->content);
-				my $fav_file   = decode_json($fav_response->content);
-				my $rytec_file = decode_json($rytec_response->content);
+				my $ch_file;
+				my $fav_file;
+				my $rytec_file;
+				
+				eval{
+					$ch_file    = decode_json($channel_response->content);
+					$fav_file   = decode_json($fav_response->content);
+					$rytec_file = decode_json($rytec_response->content);
+				};
 				
 				if( not defined $ch_file or not defined $fav_file or not defined $rytec_file ) {
 					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Failed to parse JSON file(s) (CH LIST)\n\n";
@@ -971,13 +1098,13 @@ sub http_child {
 											}
 											
 											if( defined $ffmpeg and defined $dolby and defined $audio2 ) {
-												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 											} elsif( defined $ffmpeg and defined $dolby ) {
-												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 											} elsif( defined $ffmpeg and defined $audio2 ) {
-												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 											} elsif( defined $ffmpeg ) {
-												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 											} elsif( defined $dolby and defined $audio2 ) {
 												$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\n";
 											} elsif( defined $dolby ) {
@@ -1001,13 +1128,13 @@ sub http_child {
 												}
 												
 												if( defined $ffmpeg and defined $dolby and defined $audio2 ) {
-													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 												} elsif( defined $ffmpeg and defined $dolby ) {
-													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 												} elsif( defined $ffmpeg and defined $audio2 ) {
-													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 												} elsif( defined $ffmpeg ) {
-													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 												} elsif( defined $dolby and defined $audio2 ) {
 													$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\n";
 												} elsif( defined $dolby ) {
@@ -1046,13 +1173,13 @@ sub http_child {
 									}
 									
 									if( defined $ffmpeg and defined $dolby and defined $audio2 ) {
-										$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+										$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 									} elsif( defined $ffmpeg and defined $dolby ) {
-										$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+										$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 									} elsif( defined $ffmpeg and defined $audio2 ) {
-										$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+										$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 									} elsif( defined $ffmpeg ) {
-										$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+										$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 									} elsif( defined $dolby and defined $audio2 ) {
 										$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\n";
 									} elsif( defined $dolby ) {
@@ -1076,13 +1203,13 @@ sub http_child {
 										}
 										
 										if( defined $ffmpeg and defined $dolby and defined $audio2 ) {
-											$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+											$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 										} elsif( defined $ffmpeg and defined $dolby ) {
-											$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+											$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 										} elsif( defined $ffmpeg and defined $audio2 ) {
-											$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+											$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 										} elsif( defined $ffmpeg ) {
-											$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+											$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 										} elsif( defined $dolby and defined $audio2 ) {
 											$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\n";
 										} elsif( defined $dolby ) {
@@ -1194,8 +1321,13 @@ sub http_child {
 				}
 				
 				# READ JSON
-				my $ch_file    = decode_json($channel_response->content);
-				my $mapfile    = decode_json($mapping_response->content);
+				my $ch_file;
+				my $mapfile;
+				
+				eval{
+					$ch_file    = decode_json($channel_response->content);
+					$mapfile    = decode_json($mapping_response->content);
+				};
 				
 				if( not defined $ch_file or not defined $mapfile ) {
 					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Failed to parse JSON file(s) (CH LIST)\n\n";
@@ -1237,13 +1369,13 @@ sub http_child {
 							}
 						
 							if( defined $ffmpeg and defined $dolby and defined $audio2 and defined $dd_location ) {
-								$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+								$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 							} elsif( defined $ffmpeg and defined $dolby and defined $dd_location ) {
-								$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+								$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 							} elsif( defined $ffmpeg and defined $audio2 ) {
-								$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+								$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 							} elsif( defined $ffmpeg ) {
-								$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+								$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 							} elsif( defined $dolby and defined $audio2 and defined $dd_location ) {
 								$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\n";
 							} elsif( defined $dolby and defined $dd_location ) {
@@ -1359,8 +1491,13 @@ sub http_child {
 				}
 				
 				# READ JSON
-				my $ch_file       = decode_json($channel_response->content);
-				my $playlist_file = decode_json($playlist_response->content);
+				my $ch_file;
+				my $playlist_file;
+				
+				eval{
+					$ch_file       = decode_json($channel_response->content);
+					$playlist_file = decode_json($playlist_response->content);
+				};
 				
 				if( not defined $ch_file or not defined $playlist_file ) {
 					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Failed to parse JSON file(s) (REC LIST)\n\n";
@@ -1388,11 +1525,12 @@ sub http_child {
 					exit;
 				}
 				
-				# CREATE CHANNELS M3U
+				# CREATE RECORDING M3U
 				my $rec_m3u   = "#EXTM3U\n";
 				
 				foreach my $rec_data ( @rec_data ) {
 					my $name         = $rec_data->{'title'};
+					my $episode      = $rec_data->{'episode_title'};
 					my $cid          = $rec_data->{'cid'};
 					my $record_start = $rec_data->{'start'};
 					my $image        = $rec_data->{'image_url'};
@@ -1402,9 +1540,20 @@ sub http_child {
 					$record_start    =~ s/Z//g;
 					$record_start    =~ s/-/\//g;
 					$name            =~ s/,/ /g;
+					$name            =~ s/-/_/g;
+					
+					if( defined $episode ) {
+						$episode         =~ s/,/ /g;
+						$episode         =~ s/-/_/g;
+					}
 					
 					my $record_time = Time::Piece->strptime($record_start, "%Y/%m/%d %H:%M:%S");
 					my $record_local = strftime("%Y/%m/%d %H:%M:%S", localtime($record_time->epoch) );
+					my $rec_loc_sec = strftime("%s", localtime($record_time->epoch) );
+					
+					if( $rec_loc_sec > strftime("%s", localtime() ) ) {
+						$name = "[PLANNED] " . $name;
+					}
 					
 					foreach my $ch_groups ( @ch_groups ) {
 						my @channels = @{ $ch_groups->{'channels'} };
@@ -1414,16 +1563,20 @@ sub http_child {
 							my $cname   = $channels->{'title'};
 							
 							if( $cid eq $chid ) {
-								$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
+								if( defined $episode ) {
+									$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " (" . $episode . ") | " . $cname . "\n";
+								} else {
+									$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
+								}
 								
 								if( defined $ffmpeg and defined $dolby and defined $audio2 ) {
-									$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+									$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
 								} elsif( defined $ffmpeg and defined $dolby ) {
-									$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+									$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
 								} elsif( defined $ffmpeg and defined $audio2 ) {
-									$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+									$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
 								} elsif( defined $ffmpeg ) {
-									$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
+									$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
 								} elsif( defined $dolby and defined $audio2 ) {
 									$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\n";
 								} elsif( defined $dolby ) {
@@ -1532,9 +1685,13 @@ sub http_child {
 				}
 				
 				# READ JSON
-				my $playlist_file = decode_json($playlist_response->content);
-				my $mapfile       = decode_json($mapping_response->content);
+				my $playlist_file;
+				my $mapfile;
 				
+				eval{
+					$playlist_file = decode_json($playlist_response->content);
+					$mapfile       = decode_json($mapping_response->content);
+				};
 				
 				if( not defined $playlist_file or not defined $mapfile ) {
 					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Failed to parse JSON file(s) (REC LIST)\n\n";
@@ -1571,11 +1728,12 @@ sub http_child {
 					exit;
 				}
 				
-				# CREATE CHANNELS M3U
+				# CREATE RECORDING M3U
 				my $rec_m3u   = "#EXTM3U\n";
 				
 				foreach my $rec_data ( @rec_data ) {
 					my $name         = $rec_data->{'epg_title'};
+					my $episode      = $rec_data->{'epg_subtitle'};
 					my $cname        = $rec_data->{'channel_display_name'};
 					my $chid         = $rec_data->{'channel_id'};
 					my $record_start = $rec_data->{'start_utc'};
@@ -1583,7 +1741,19 @@ sub http_child {
 					my $rid          = $rec_data->{'id'};
 					my $status       = $rec_data->{'status'};
 					
+					$name            =~ s/,/ /g;
+					$name            =~ s/-/_/g;
+					
+					if( defined $episode ) {
+						$episode         =~ s/,/ /g;
+						$episode         =~ s/-/_/g;
+					}
+					
 					my $record_local = strftime "%d.%m.%Y %H:%M:%S", localtime($record_start);
+					
+					if( $status eq "PLANNED" ) {
+						$name = "[PLANNED] " . $name;
+					}
 					
 					my $dd_location;
 							
@@ -1593,26 +1763,28 @@ sub http_child {
 						}
 					}
 					
-					if( $status eq "COMPLETED" ) {
+					if( defined $episode ) {
+						$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " (" . $episode . ") | " . $cname . "\n";
+					} else {
 						$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
+					}
 									
-						if( defined $ffmpeg and defined $dolby and defined $audio2 and defined $dd_location ) {
-							$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
-						} elsif( defined $ffmpeg and defined $dolby and defined $dd_location ) {
-							$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
-						} elsif( defined $ffmpeg and defined $audio2 ) {
-							$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
-						} elsif( defined $ffmpeg ) {
-							$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts pipe:1\n";
-						} elsif( defined $dolby and defined $audio2 and defined $dd_location ) {
-							$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\n";
-						} elsif( defined $dolby and defined $dd_location ) {
-							$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
-						} elsif( defined $audio2 ) {
-							$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\n";
-						} else {
-							$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
-						}
+					if( defined $ffmpeg and defined $dolby and defined $audio2 and defined $dd_location ) {
+						$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
+					} elsif( defined $ffmpeg and defined $dolby and defined $dd_location ) {
+						$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
+					} elsif( defined $ffmpeg and defined $audio2 ) {
+						$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
+					} elsif( defined $ffmpeg ) {
+						$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
+					} elsif( defined $dolby and defined $audio2 and defined $dd_location ) {
+						$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\n";
+					} elsif( defined $dolby and defined $dd_location ) {
+						$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\n";
+					} elsif( defined $audio2 ) {
+						$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&audio2=true" . "\n";
+					} else {
+						$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
 					}
 				}
 					
@@ -2148,7 +2320,11 @@ sub http_child {
 					
 				} else {
 					
-					my $liveview_file = decode_json( $live_response->content );
+					my $liveview_file;
+					
+					eval{
+						$liveview_file = decode_json( $live_response->content );
+					};
 					
 					if( not defined $liveview_file ) {
 						print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - ERROR: Failed to parse JSON file (LIVE-TV)\n\n";
@@ -2366,9 +2542,10 @@ sub http_child {
 						
 						# EDIT PLAYLIST
 						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Editing M3U8\n";
-						$link        =~ /(.*)($final_quality_audio.*?z32=)(.*)"/m;
-						my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $3;
-						my $link_audio_url = $uri . "/" . $2 . $3;
+						$link        =~ /(.*)(NAME=")(.*)(",DEFAULT=.*)($final_quality_audio.*?z32=)(.*)"/m;
+						my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $6;
+						my $link_audio_url = $uri . "/" . $5 . $6;
+						my $language       = $3;
 						
 						$link_video_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
 						$link_video_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
@@ -2376,7 +2553,7 @@ sub http_child {
 						$link_audio_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
 						$link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
 						
-						my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+						my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
 						
 						# CACHE PLAYLIST
 						open my $cachedfile, ">", "$channel:$quality:$platform:cached";
@@ -2455,7 +2632,11 @@ sub http_child {
 			}
 				
 			# READ JSON
-			my $epg_file = decode_json($epg_response->content);
+			my $epg_file;
+			
+			eval{
+				$epg_file = decode_json($epg_response->content);
+			};
 			
 			if( not defined $epg_file ) {
 				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - ERROR: Failed to parse JSON file (EPG)\n\n";
@@ -2535,7 +2716,11 @@ sub http_child {
 					exit;
 				}
 				
-				my $rec_file = decode_json( $recadd_response->content );
+				my $rec_file;
+				
+				eval{
+					$rec_file = decode_json( $recadd_response->content );
+				};
 				
 				if( not defined $rec_file ) {
 					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - ERROR: Failed to parse JSON file (PVR-TV 1)\n\n";
@@ -2592,7 +2777,11 @@ sub http_child {
 					
 				} else {
 				
-					my $recview_file = decode_json( $recview_response->content );
+					my $recview_file;
+					
+					eval{
+						$recview_file = decode_json( $recview_response->content );
+					};
 					
 					if( not defined $recview_file ) {
 						print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - ERROR: Failed to parse JSON file (PVR-TV 2)\n\n";
@@ -2893,12 +3082,13 @@ sub http_child {
 					my $start       = $2;
 					my $end         = $3;
 						
-					$link        =~ /(.*)($final_quality_audio.*)(\?z32=)(.*)"/m;
+					$link        =~ /(.*)(NAME=")(.*)(",DEFAULT.*)($final_quality_audio.*)(\?z32=)(.*)"/m;
+					
+					my $language = $3;
+					my $audio    = $5;
+					my $keyval   = $7;
 						
-					my $audio    = $2;
-					my $keyval   = $4;
-						
-					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$audio\&platform=hls5\&zkey=$keyval\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\nhttp://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&platform=hls5\&zkey=$keyval";
+					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$audio\&platform=hls5\&zkey=$keyval\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\nhttp://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&platform=hls5\&zkey=$keyval";
 					
 					# CACHE PLAYLIST
 					open my $cachedfile, ">", "$channel:$quality:$platform:cached";
@@ -3046,9 +3236,10 @@ sub http_child {
 							$final_framerate  = "25";
 						}
 							
-						# SET FINAL AUDIO CODEC
+						# SET FINAL AUDIO CODEC + LANGUAGE
 						my $final_quality_audio;
 						my $final_codec;
+						my $language;
 							
 						# USER WANTS 2ND DOLBY AUDIO STREAM
 						if( defined $dolby and defined $audio2 ) {
@@ -3056,31 +3247,43 @@ sub http_child {
 							if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" and $dolby eq "true" ) {
 								$final_quality_audio = "t_track_audio_bw_256_num_3";
 								$final_codec = "avc1.4d4020,ec-3";
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+								$language = $3;
 							# AUDIO 2 UNAVAILABLE, DOLBY SUPPORTED
 							} else {
 								$final_quality_audio = "t_track_audio_bw_256_num_1";
 								$final_codec = "avc1.4d4020,ec-3";
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+								$language = $3;
 							}
 						# USER WANTS 1ST DOLBY AUDIO STREAM
 						} elsif( defined $dolby ) {
 							# AUDIO 1, DOLBY SUPPORTED
 							$final_quality_audio = "t_track_audio_bw_256_num_1";
 							$final_codec = "avc1.4d4020,ec-3";
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+							$language = $3;
 						# USER WANTS 2ND STEREO AUDIO STREAM
 						} elsif( defined $audio2 ) {
 							# AUDIO 2
 							if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
 								$final_quality_audio = "t_track_audio_bw_128_num_2";
 								$final_codec = "avc1.4d4020,mp4a.40.2";
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+								$language = $3;
 							# AUDIO 2 UNAVAILABLE
 							} else {
 								$final_quality_audio = "t_track_audio_bw_128_num_0";
 								$final_codec = "avc1.4d4020,mp4a.40.2";
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+								$language = $3;
 							}
 						# USER WANTS 1ST STEREO AUDIO STREAM
 						} else {
 							$final_quality_audio = "t_track_audio_bw_128_num_0";
 							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+							$language = $3;
 						}
 							
 						# EDIT PLAYLIST
@@ -3095,7 +3298,7 @@ sub http_child {
 						$link_audio_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
 						$link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
 						
-						my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+						my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
 						
 						# CACHE PLAYLIST
 						open my $cachedfile, ">", "$channel:$quality:$platform:cached";
@@ -3200,7 +3403,11 @@ sub http_child {
 			
 			} elsif( defined $rec_ch ) {
 				
-				my $recchview_file = decode_json( $recchview_response->content );
+				my $recchview_file;
+				
+				eval{
+					$recchview_file = decode_json( $recchview_response->content );
+				};
 				
 				if( not defined $recchview_file ) {
 					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $channel | $quality | $platform - ERROR: Failed to parse JSON file (REC)\n\n";
@@ -3416,14 +3623,15 @@ sub http_child {
 						
 					# EDIT PLAYLIST
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Editing M3U8\n";
-					$link        =~ /(.*)($final_quality_audio.*?z32=)(.*)"/m;
-					my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $3;
-					my $link_audio_url = $uri . "/" . $2 . $3;
+					$link        =~ /(.*)(NAME=")(.*)(",DEFAULT.*)($final_quality_audio.*?z32=)(.*)"/m;
+					my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $6;
+					my $link_audio_url = $uri . "/" . $5 . $6;
+					my $language       = $3;
 					
 					$link_video_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-pvr.zahs.tv/g;
 					$link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-pvr.zahs.tv/g;
 					
-					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
 					
 					# CACHE PLAYLIST
 					open my $cachedfile, ">", "$rec_ch:$quality:$platform:cached";
@@ -3517,7 +3725,11 @@ sub http_child {
 			
 			} elsif( defined $rec_ch ) {
 				
-				my $recchview_file = decode_json( $recchview_response->content );
+				my $recchview_file;
+				
+				eval{
+					$recchview_file = decode_json( $recchview_response->content );
+				};
 				
 				if( not defined $recchview_file ) {
 					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $channel | $quality | $platform - ERROR: Failed to parse JSON file (REC)\n\n";
@@ -3611,9 +3823,10 @@ sub http_child {
 						$final_framerate  = "25";
 					}
 						
-					# SET FINAL AUDIO CODEC
+					# SET FINAL AUDIO CODEC + LANGUAGE
 					my $final_quality_audio;
 					my $final_codec;
+					my $language;
 						
 					# USER WANTS 2ND DOLBY AUDIO STREAM
 					if( defined $dolby and defined $audio2 ) {
@@ -3621,31 +3834,43 @@ sub http_child {
 						if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" and $dolby eq "true" ) {
 							$final_quality_audio = "t_track_audio_bw_256_num_3";
 							$final_codec = "avc1.4d4020,ec-3";
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+							$language = $3;
 						# AUDIO 2 UNAVAILABLE, DOLBY SUPPORTED
 						} else {
 							$final_quality_audio = "t_track_audio_bw_256_num_1";
 							$final_codec = "avc1.4d4020,ec-3";
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+							$language = $3;
 						}
 					# USER WANTS 1ST DOLBY AUDIO STREAM
 					} elsif( defined $dolby ) {
 						# AUDIO 1, DOLBY SUPPORTED
 						$final_quality_audio = "t_track_audio_bw_256_num_1";
 						$final_codec = "avc1.4d4020,ec-3";
+						$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+						$language = $3;
 					# USER WANTS 2ND STEREO AUDIO STREAM
 					} elsif( defined $audio2 ) {
 						# AUDIO 2
 						if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
 							$final_quality_audio = "t_track_audio_bw_128_num_2";
 							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+							$language = $3;
 						# AUDIO 2 UNAVAILABLE
 						} else {
 							$final_quality_audio = "t_track_audio_bw_128_num_0";
 							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+							$language = $3;
 						}
 					# USER WANTS 1ST STEREO AUDIO STREAM
 					} else {
 						$final_quality_audio = "t_track_audio_bw_128_num_0";
 						$final_codec = "avc1.4d4020,mp4a.40.2";
+						$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+						$language = $3;
 					}
 						
 					# EDIT PLAYLIST
@@ -3657,7 +3882,7 @@ sub http_child {
 					$link_video_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-pvr.zahs.tv/g;
 					$link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-pvr.zahs.tv/g;
 					
-					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"Default\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"mis\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
 					
 					# CACHE PLAYLIST
 					open my $cachedfile, ">", "$rec_ch:$quality:$platform:cached";

@@ -86,13 +86,13 @@ sudo cpan install utf8
 mkdir ~/telerising
 
 # Download the .zip file and extract the files into your folder:
-wget https://github.com/sunsettrack4/telerising/archive/v0.2.7.zip
+wget https://github.com/sunsettrack4/telerising/archive/v0.2.8.zip
 
 # Unzip the file:
-unzip v0.2.7.zip
+unzip v0.2.8.zip
 
 # Move all script files to the created folder
-mv ~/telerising-0.2.7/* ~/telerising/
+mv ~/telerising-0.2.8/* ~/telerising/
 
 # Set system-wide permissions to the folder and its related files
 sudo chmod 0777 ~/telerising
@@ -107,12 +107,14 @@ perl zattoo.pl & disown
 ```
 #### Login file to be placed in script folder
 The variables "provider", "login" and "password" are required values, the other ones are optional.
+The "address" value will be prioritized. Otherwise, the "interface" variable will be used.
 ```
 {
   "provider": "zattoo.com",
   "login": "firstname.lastname@example.com",
   "password": "mypassword123",
   "interface": "eth0",
+  "address": "192.168.8.100",
   "server": "fr5-0",
   "ffmpeg_lib": "/usr/bin/ffmpeg",
   "port": "8080",
