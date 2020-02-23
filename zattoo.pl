@@ -21,10 +21,13 @@
 # ####################################
 
 unlink "log.txt";
-open (STDOUT, "| tee -ai log.txt");
+
+use IO::Tee;
+my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
+select $tee;
 
 print "\n=======================\n";
-print   " TELERISING API v0.2.8 \n";
+print   " TELERISING API v0.2.9 \n";
 print   "=======================\n\n";
 
 print "(c) 2019-2020 Jan-Luca Neumann (sunsettrack4)\n";
@@ -887,6 +890,9 @@ sub http_child {
 		# SET REMOVE FLAG
 		my $remove   = $params->{'remove'};
 		
+		# SET MULTIAUDIO PROFILE
+		my $multi    = $params->{'profile'};
+		
 		# READ SESSION FILE
 		my $json;
 		{
@@ -1097,7 +1103,25 @@ sub http_child {
 												$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $name . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 											}
 											
-											if( defined $ffmpeg and defined $dolby and defined $audio2 ) {
+											if( defined $multi ) {
+												if( defined $ffmpeg and $multi eq "1" ) {
+													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=1\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+												} elsif( defined $ffmpeg and $multi eq "2" ) {
+													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=2\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+												} elsif( defined $ffmpeg and $multi eq "3" ) {
+													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+												} elsif( defined $ffmpeg ) {
+													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+												} elsif( $multi eq "1" ) {
+													$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=1\n";
+												} elsif( $multi eq "2" ) {
+													$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=2\n";
+												} elsif( $multi eq "3" ) {
+													$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\n";
+												} else {
+													$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+												}
+											} elsif( defined $ffmpeg and defined $dolby and defined $audio2 ) {
 												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 											} elsif( defined $ffmpeg and defined $dolby ) {
 												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
@@ -1127,7 +1151,26 @@ sub http_child {
 													$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $name . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 												}
 												
-												if( defined $ffmpeg and defined $dolby and defined $audio2 ) {
+												
+												if( defined $multi ) {
+													if( defined $ffmpeg and $multi eq "1" ) {
+														$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=1\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+													} elsif( defined $ffmpeg and $multi eq "2" ) {
+														$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=2\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+													} elsif( defined $ffmpeg and $multi eq "3" ) {
+														$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+													} elsif( defined $ffmpeg ) {
+														$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+													} elsif( $multi eq "1" ) {
+														$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=1\n";
+													} elsif( $multi eq "2" ) {
+														$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=2\n";
+													} elsif( $multi eq "3" ) {
+														$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\n";
+													} else {
+														$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+													}
+												} elsif( defined $ffmpeg and defined $dolby and defined $audio2 ) {
 													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 												} elsif( defined $ffmpeg and defined $dolby ) {
 													$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
@@ -1172,7 +1215,25 @@ sub http_child {
 										$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $name . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 									}
 									
-									if( defined $ffmpeg and defined $dolby and defined $audio2 ) {
+									if( defined $multi ) {
+										if( defined $ffmpeg and $multi eq "1" ) {
+											$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=1\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+										} elsif( defined $ffmpeg and $multi eq "2" ) {
+											$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=2\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+										} elsif( defined $ffmpeg and $multi eq "3" ) {
+											$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+										} elsif( defined $ffmpeg ) {
+											$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+										} elsif( $multi eq "1" ) {
+											$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=1\n";
+										} elsif( $multi eq "2" ) {
+											$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=2\n";
+										} elsif( $multi eq "3" ) {
+											$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\n";
+										} else {
+											$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+										}
+									} elsif( defined $ffmpeg and defined $dolby and defined $audio2 ) {
 										$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 									} elsif( defined $ffmpeg and defined $dolby ) {
 										$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
@@ -1202,7 +1263,25 @@ sub http_child {
 											$ch_m3u = $ch_m3u . "#EXTINF:0001 tvg-id=\"" . $name . "\" group-title=\"" . $group . "\" tvg-logo=\"https://images.zattic.com" . $logo . "\", " . $name . "\n";
 										}
 										
-										if( defined $ffmpeg and defined $dolby and defined $audio2 ) {
+										if( defined $multi ) {
+											if( defined $ffmpeg and $multi eq "1" ) {
+												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=1\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+											} elsif( defined $ffmpeg and $multi eq "2" ) {
+												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=2\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+											} elsif( defined $ffmpeg and $multi eq "3" ) {
+												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+											} elsif( defined $ffmpeg ) {
+												$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+											} elsif( $multi eq "1" ) {
+												$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=1\n";
+											} elsif( $multi eq "2" ) {
+												$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=2\n";
+											} elsif( $multi eq "3" ) {
+												$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\n";
+											} else {
+												$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+											}
+										} elsif( defined $ffmpeg and defined $dolby and defined $audio2 ) {
 											$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 										} elsif( defined $ffmpeg and defined $dolby ) {
 											$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
@@ -1367,8 +1446,34 @@ sub http_child {
 									$dd_location = "true";
 								}
 							}
-						
-							if( defined $ffmpeg and defined $dolby and defined $audio2 and defined $dd_location ) {
+							
+							if( defined $multi ) {
+								if( defined $ffmpeg and $multi eq "1" and defined $dd_location ) {
+									$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=1\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+								} elsif( defined $ffmpeg and $multi eq "1" and not defined $dd_location ) {
+									$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+								} elsif( defined $ffmpeg and $multi eq "2" and defined $dd_location ) {
+									$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=2\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+								} elsif( defined $ffmpeg and $multi eq "2" and not defined $dd_location ) {
+									$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+								} elsif( defined $ffmpeg and $multi eq "3" ) {
+									$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+								} elsif( defined $ffmpeg ) {
+									$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
+								} elsif( $multi eq "1" and defined $dd_location ) {
+									$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=1\n";
+								} elsif( $multi eq "1" and not defined $dd_location ) {
+									$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\n";
+								} elsif( $multi eq "2" and defined $dd_location ) {
+									$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=2\n";
+								} elsif( $multi eq "1" and not defined $dd_location ) {
+									$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\n";
+								} elsif( $multi eq "3" ) {
+									$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\n";
+								} else {
+									$ch_m3u = $ch_m3u .  "http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+								}
+							} elsif( defined $ffmpeg and defined $dolby and defined $audio2 and defined $dd_location ) {
 								$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
 							} elsif( defined $ffmpeg and defined $dolby and defined $dd_location ) {
 								$ch_m3u = $ch_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?channel=" . $chid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1\n";
@@ -1569,7 +1674,25 @@ sub http_child {
 									$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
 								}
 								
-								if( defined $ffmpeg and defined $dolby and defined $audio2 ) {
+								if( defined $multi ) {
+									if( defined $ffmpeg and $multi eq "1" ) {
+										$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=1\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
+									} elsif( defined $ffmpeg and $multi eq "2" ) {
+										$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=2\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
+									} elsif( defined $ffmpeg and $multi eq "3" ) {
+										$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
+									} elsif( defined $ffmpeg ) {
+										$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
+									} elsif( $multi eq "1" ) {
+										$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=1\n";
+									} elsif( $multi eq "2" ) {
+										$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=2\n";
+									} elsif ( $multi eq "3" ) {
+										$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\n";
+									} else {
+										$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+									}
+								} elsif( defined $ffmpeg and defined $dolby and defined $audio2 ) {
 									$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
 								} elsif( defined $ffmpeg and defined $dolby ) {
 									$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
@@ -1768,8 +1891,34 @@ sub http_child {
 					} else {
 						$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
 					}
-									
-					if( defined $ffmpeg and defined $dolby and defined $audio2 and defined $dd_location ) {
+					
+					if( defined $multi ) {
+						if( defined $ffmpeg and $multi eq "1" and defined $dd_location ) {
+							$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=1\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
+						} elsif( defined $ffmpeg and $multi eq "1" and not defined $dd_location ) {
+							$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
+						} elsif( defined $ffmpeg and $multi eq "2" and defined $dd_location ) {
+							$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=2\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
+						} elsif( defined $ffmpeg and $multi eq "2" and not defined $dd_location ) {
+							$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
+						} elsif( defined $ffmpeg and $multi eq "3" ) {
+							$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
+						} elsif( defined $ffmpeg ) {
+							$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
+						} elsif( $multi eq "1" and defined $dd_location ) {
+							$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=1\n";
+						} elsif( $multi eq "1" and not defined $dd_location ) {
+							$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\n";
+						} elsif( $multi eq "2" and defined $dd_location ) {
+							$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=2\n";
+						} elsif( $multi eq "2" and not defined $dd_location ) {
+							$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\n";
+						} elsif( $multi eq "3" ) {
+							$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&profile=3\n";
+						} else {
+							$rec_m3u = $rec_m3u .  "http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\n";
+						}
+					} elsif( defined $ffmpeg and defined $dolby and defined $audio2 and defined $dd_location ) {
 						$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true\&audio2=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
 					} elsif( defined $ffmpeg and defined $dolby and defined $dd_location ) {
 						$rec_m3u = $rec_m3u .  "pipe://$ffmpeglib -i \"http://$hostip:$port/index.m3u8?recording=" . $rid ."\&bw=" . $quality . "\&platform=" . $platform . "\&dolby=true" . "\" -vcodec copy -acodec copy -f mpegts -metadata service_name=\"" . $cname . "\" pipe:1\n";
@@ -2492,16 +2641,61 @@ sub http_child {
 						# SET FINAL AUDIO CODEC
 						my $final_quality_audio;
 						my $final_codec;
+						my $second_final_quality_audio;
 						
+						# USER WANTS 2 AUDIO STREAMS
+						if( defined $multi ) {
+							# PROFILE 1: DOLBY 1 + STEREO 2
+							if( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_2/ and $multi eq "1" ) {
+								$final_quality_audio = "t_track_audio_bw_256_num_1";
+								$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_2";
+							# TRY TO USE PROFILE 2 WHEN SECOND STEREO STREAM DOES NOT EXIST: DOLBY 1 + STEREO 1
+							} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_0/ and $multi eq "1" ) {
+								$final_quality_audio = "t_track_audio_bw_256_num_1";
+								$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+							# PROFILE 2: DOLBY 1 + STEREO 1
+							} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_0/ and $multi eq "2" ) {
+								$final_quality_audio = "t_track_audio_bw_256_num_1";
+								$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+							# PROFILE 3: STEREO 1 + STEREO 2 (DOLBY SUPPORTED)
+							} elsif( $link =~ m/t_track_audio_bw_128_num_0/ and $link =~ m/t_track_audio_bw_128_num_2/ and $multi eq "3" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_2";
+							# PROFILE 3: STEREO 1 + STEREO 2 (NO DOLBY)
+							} elsif( $link =~ m/t_track_audio_bw_128_num_0/ and $link =~ m/t_track_audio_bw_128_num_1/ and $multi eq "3" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_1";
+							# SELECTED DOLBY PROFILE IS NOT SUPPORTED: TRY TO USE PROFILE 3
+							} elsif( $link =~ m/t_track_audio_bw_128_num_0/ and $link =~ m/t_track_audio_bw_128_num_1/ ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_1";
+								$multi = "3";
+							# SELECTED PROFILE IS NOT SUPPORTED + PROFILE 3 IS NOT SUPPORTED: STEREO 1 DUPLICATE
+							} else {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+								$multi = "3";
+							}
 						# USER WANTS 2ND DOLBY AUDIO STREAM
-						if( defined $dolby and defined $audio2 ) {
+						} elsif( defined $dolby and defined $audio2 ) {
 							# AUDIO 2, DOLBY SUPPORTED
 							if( $link =~ m/t_track_audio_bw_256_num_3/ and $audio2 eq "true" and $dolby eq "true" ) {
 								$final_quality_audio = "t_track_audio_bw_256_num_3";
 								$final_codec = "avc1.4d4020,ec-3";
-							# AUDIO 2, NO DOLBY SUPPORT
+							# AUDIO 2, DOLBY SUPPORTED FOR AUDIO 1 ONLY
 							} elsif( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" and $dolby eq "true" ) {
 								$final_quality_audio = "t_track_audio_bw_128_num_2";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+							# AUDIO 2, NO DOLBY SUPPORT FOR AUDIO 1
+							} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" and $dolby eq "true" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_1";
 								$final_codec = "avc1.4d4020,mp4a.40.2";
 							# AUDIO 2 UNAVAILABLE, DOLBY SUPPORTED
 							} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $audio2 eq "true" and $dolby eq "true" ) {
@@ -2525,9 +2719,13 @@ sub http_child {
 							}
 						# USER WANTS 2ND STEREO AUDIO STREAM
 						} elsif( defined $audio2 ) {
-							# AUDIO 2 AVAILABLE
+							# AUDIO 2 AVAILABLE, DOLBY SUPPORTED FOR AUDIO 1
 							if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
 								$final_quality_audio = "t_track_audio_bw_128_num_2";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+							# AUDIO 2 AVAILABLE, NO DOLBY SUPPORT FOR AUDIO 1
+							} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_1";
 								$final_codec = "avc1.4d4020,mp4a.40.2";
 							# AUDIO 2 UNAVAILABLE
 							} else {
@@ -2545,7 +2743,51 @@ sub http_child {
 						$link        =~ /(.*)(NAME=")(.*)(",DEFAULT=.*)($final_quality_audio.*?z32=)(.*)"/m;
 						my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $6;
 						my $link_audio_url = $uri . "/" . $5 . $6;
-						my $language       = $3;
+						my $language = $3;
+						
+						if( $language eq "Deutsch" ) {
+							$language = "deu";
+						} elsif( $language eq "English" ) {
+							$language = "eng";
+						} elsif( $language eq "Français" ) {
+							$language = "fra";
+						} elsif( $language eq "Italiano" ) {
+							$language = "ita";
+						} elsif( $language eq "Español") {
+							$language = "spa";
+						} elsif( $language eq "Português" ) {
+							$language = "por";
+						} elsif( $language eq "Türkçe" ) {
+							$language = "tur";
+						} else {
+							$language = "mis";
+						}
+						
+						my $second_link_audio_url;
+						my $second_language;
+						if( defined $multi and defined $second_final_quality_audio ) {
+							$link        =~ /(.*)(NAME=")(.*)(",DEFAULT=.*)($second_final_quality_audio.*?z32=)(.*)"/m;
+							$second_link_audio_url = $uri . "/" . $5 . $6;
+							$second_language       = $3;
+							
+							if( $second_language eq "Deutsch" ) {
+								$second_language = "deu";
+							} elsif( $second_language eq "English" ) {
+								$second_language = "eng";
+							} elsif( $second_language eq "Français" ) {
+								$second_language = "fra";
+							} elsif( $second_language eq "Italiano" ) {
+								$second_language = "ita";
+							} elsif( $second_language eq "Español") {
+								$second_language = "spa";
+							} elsif( $second_language eq "Português" ) {
+								$second_language = "por";
+							} elsif( $second_language eq "Türkçe" ) {
+								$second_language = "tur";
+							} else {
+								$second_language = "mis";
+							}
+						}
 						
 						$link_video_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
 						$link_video_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
@@ -2553,7 +2795,17 @@ sub http_child {
 						$link_audio_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
 						$link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
 						
-						my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+						if( defined $multi and defined $second_link_audio_url ) {
+							$second_link_audio_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
+							$second_link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
+						}
+						
+						my $m3u8;
+						if( defined $multi ) {
+							$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$second_language\",DEFAULT=NO,AUTOSELECT=YES,LANGUAGE=\"$second_language\",URI=\"$second_link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+						} else {
+							$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+						}
 						
 						# CACHE PLAYLIST
 						open my $cachedfile, ">", "$channel:$quality:$platform:cached";
@@ -2599,9 +2851,9 @@ sub http_child {
 			}	
 			
 			# LOAD EPG
-			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Requesting current EPG\n";
-			my $start   = time()-300;
-			my $stop    = time()-300;
+			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Requesting EPG\n";
+			my $start   = time()-432000;
+			my $stop    = time()-432000;
 			my $epg_url = "https://$provider/zapi/v3/cached/$powerid/guide?start=$start&end=$stop";
 			
 			my $epg_agent = LWP::UserAgent->new(
@@ -3026,16 +3278,59 @@ sub http_child {
 					# SET FINAL AUDIO CODEC
 					my $final_quality_audio;
 					my $final_codec;
+					my $second_final_quality_audio;
 					
+					# USER WANTS 2 AUDIO STREAMS
+					if( defined $multi ) {
+						# PROFILE 1: DOLBY 1 + STEREO 2
+						if( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_2/ and $multi eq "1" ) {
+							$final_quality_audio = "t_track_audio_bw_256_num_1";
+							$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_2";
+						# TRY TO USE PROFILE 2 WHEN SECOND STEREO STREAM DOES NOT EXIST: DOLBY 1 + STEREO 1
+						} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_0/ and $multi eq "1" ) {
+							$final_quality_audio = "t_track_audio_bw_256_num_1";
+							$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+						# PROFILE 2: DOLBY 1 + STEREO 1
+						} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_0/ and $multi eq "2" ) {
+							$final_quality_audio = "t_track_audio_bw_256_num_1";
+							$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+						# PROFILE 3: STEREO 1 + STEREO 2 (DOLBY SUPPORTED)
+						} elsif( $link =~ m/t_track_audio_bw_128_num_0/ and $link =~ m/t_track_audio_bw_128_num_2/ and $multi eq "3" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_2";
+						# PROFILE 3: STEREO 1 + STEREO 2 (NO DOLBY SUPPORT)
+						} elsif( $link =~ m/t_track_audio_bw_128_num_0/ and $link =~ m/t_track_audio_bw_128_num_1/ and $multi eq "3" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_1";
+						# SELECTED DOLBY PROFILE IS NOT SUPPORTED: TRY TO USE PROFILE 3
+						} elsif( $link =~ m/t_track_audio_bw_128_num_0/ and $link =~ m/t_track_audio_bw_128_num_1/ ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_1";
+						# SELECTED PROFILE IS NOT SUPPORTED + PROFILE 3 IS NOT SUPPORTED: STEREO 1 DUPLICATE
+						} else {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+						}
 					# USER WANTS 2ND DOLBY AUDIO STREAM
-					if( defined $dolby and defined $audio2 ) {
+					} elsif( defined $dolby and defined $audio2 ) {
 						# AUDIO 2, DOLBY SUPPORTED
 						if( $link =~ m/t_track_audio_bw_256_num_3/ and $audio2 eq "true" and $dolby eq "true" ) {
 							$final_quality_audio = "t_track_audio_bw_256_num_3";
 							$final_codec = "avc1.4d4020,ec-3";
-						# AUDIO 2, NO DOLBY SUPPORT
+						# AUDIO 2, DOLBY SUPPORTED FOR AUDIO 1 ONLY
 						} elsif( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" and $dolby eq "true" ) {
 							$final_quality_audio = "t_track_audio_bw_128_num_2";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+						# AUDIO 2, NO DOLBY SUPPORT FOR AUDIO 1
+						} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" and $dolby eq "true" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_1";
 							$final_codec = "avc1.4d4020,mp4a.40.2";
 						# AUDIO 2 UNAVAILABLE, DOLBY SUPPORTED
 						} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $audio2 eq "true" and $dolby eq "true" ) {
@@ -3059,9 +3354,13 @@ sub http_child {
 						}
 					# USER WANTS 2ND STEREO AUDIO STREAM
 					} elsif( defined $audio2 ) {
-						# AUDIO 2, NO DOLBY SUPPORT
+						# AUDIO 2, DOLBY SUPPORTED FOR AUDIO 1
 						if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
 							$final_quality_audio = "t_track_audio_bw_128_num_2";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+						# AUDIO 2, NO DOLBY SUPPORT FOR AUDIO 1
+						} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_1";
 							$final_codec = "avc1.4d4020,mp4a.40.2";
 						# AUDIO 2 UNAVAILABLE
 						} else {
@@ -3085,10 +3384,65 @@ sub http_child {
 					$link        =~ /(.*)(NAME=")(.*)(",DEFAULT.*)($final_quality_audio.*)(\?z32=)(.*)"/m;
 					
 					my $language = $3;
+					
+					if( $language eq "Deutsch" ) {
+						$language = "deu";
+					} elsif( $language eq "English" ) {
+						$language = "eng";
+					} elsif( $language eq "Français" ) {
+						$language = "fra";
+					} elsif( $language eq "Italiano" ) {
+						$language = "ita";
+					} elsif( $language eq "Español") {
+						$language = "spa";
+					} elsif( $language eq "Português" ) {
+						$language = "por";
+					} elsif( $language eq "Türkçe" ) {
+						$language = "tur";
+					} else {
+						$language = "mis";
+					}
+					
 					my $audio    = $5;
 					my $keyval   = $7;
+					
+					my $second_language;
+					my $second_audio;
+					my $second_keyval;
+					
+					if( defined $multi and defined $second_final_quality_audio ) {
+						$link        =~ /(.*)(NAME=")(.*)(",DEFAULT.*)($second_final_quality_audio.*)(\?z32=)(.*)"/m;
 						
-					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$audio\&platform=hls5\&zkey=$keyval\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\nhttp://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&platform=hls5\&zkey=$keyval";
+						$second_language = $3;
+						
+						if( $second_language eq "Deutsch" ) {
+							$second_language = "deu";
+						} elsif( $second_language eq "English" ) {
+							$second_language = "eng";
+						} elsif( $second_language eq "Français" ) {
+							$second_language = "fra";
+						} elsif( $second_language eq "Italiano" ) {
+							$second_language = "ita";
+						} elsif( $second_language eq "Español") {
+							$second_language = "spa";
+						} elsif( $second_language eq "Português" ) {
+							$second_language = "por";
+						} elsif( $second_language eq "Türkçe" ) {
+							$second_language = "tur";
+						} else {
+							$second_language = "mis";
+						}
+							
+						$second_audio    = $5;
+						$second_keyval   = $7;
+					}
+						
+					my $m3u8;
+					if( defined $multi ) {
+						$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$audio\&platform=hls5\&zkey=$keyval\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$second_language\",DEFAULT=NO,AUTOSELECT=YES,LANGUAGE=\"$second_language\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$second_audio\&platform=hls5\&zkey=$second_keyval\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\nhttp://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&platform=hls5\&zkey=$keyval";
+					} else {
+						$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$audio\&platform=hls5\&zkey=$keyval\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\nhttp://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&platform=hls5\&zkey=$keyval";
+					}
 					
 					# CACHE PLAYLIST
 					open my $cachedfile, ">", "$channel:$quality:$platform:cached";
@@ -3239,10 +3593,68 @@ sub http_child {
 						# SET FINAL AUDIO CODEC + LANGUAGE
 						my $final_quality_audio;
 						my $final_codec;
+						my $second_final_quality_audio;
 						my $language;
-							
+						my $second_language;
+						
+						# USER WANTS 2 AUDIO STREAMS
+						if( defined $multi ) {
+							# PROFILE 1: DOLBY 1 + STEREO 2
+							if( $link =~ m/t_track_audio_bw_128_num_2/ and $multi eq "1" ) {
+								$final_quality_audio = "t_track_audio_bw_256_num_1";
+								$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_2";
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+								$language = $3;
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+								$second_language = $3;
+							# TRY TO USE PROFILE 2 WHEN SECOND STEREO STREAM DOES NOT EXIST: DOLBY 1 + STEREO 1
+							} elsif( $multi eq "1" ) {
+								$final_quality_audio = "t_track_audio_bw_256_num_1";
+								$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+								$language = $3;
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+								$second_language = $3;
+							# PROFILE 2: DOLBY 1 + STEREO 1
+							} elsif( $multi eq "2" ) {
+								$final_quality_audio = "t_track_audio_bw_256_num_1";
+								$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+								$language = $3;
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+								$second_language = $3;
+							# PROFILE 3: STEREO 1 + STEREO 2 (DOLBY SUPPORTED)
+							} elsif( $link =~ m/t_track_audio_bw_128_num_2/ and $multi eq "3" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_2";
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+								$language = $3;
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+								$second_language = $3;
+							# PROFILE 3: STEREO 1 + STEREO 2 (NO DOLBY SUPPORT)
+							} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $multi eq "3" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_1";
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+								$language = $3;
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_1.*)/m;
+								$second_language = $3;
+							# SELECTED PROFILE IS NOT SUPPORTED + PROFILE 3 IS NOT SUPPORTED: STEREO 1 DUPLICATE
+							} else {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+								$language = $3;
+								$multi = "3";
+							}
 						# USER WANTS 2ND DOLBY AUDIO STREAM
-						if( defined $dolby and defined $audio2 ) {
+						} elsif( defined $dolby and defined $audio2 ) {
 							# AUDIO 2, DOLBY SUPPORTED
 							if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" and $dolby eq "true" ) {
 								$final_quality_audio = "t_track_audio_bw_256_num_3";
@@ -3265,11 +3677,17 @@ sub http_child {
 							$language = $3;
 						# USER WANTS 2ND STEREO AUDIO STREAM
 						} elsif( defined $audio2 ) {
-							# AUDIO 2
+							# AUDIO 2, DOLBY SUPPORTED
 							if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
 								$final_quality_audio = "t_track_audio_bw_128_num_2";
 								$final_codec = "avc1.4d4020,mp4a.40.2";
 								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+								$language = $3;
+							# AUDIO 2, NO DOLBY SUPPORT
+							} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_1";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_1.*)/m;
 								$language = $3;
 							# AUDIO 2 UNAVAILABLE
 							} else {
@@ -3291,6 +3709,12 @@ sub http_child {
 						$link        =~ /(.*)(t_track_audio_bw_128_num_0)(.*?z32=)(.*)"/m;
 						my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $4;
 						my $link_audio_url = $uri . "/" . $final_quality_audio . $3 . $4;
+						
+						my $second_link_audio_url;
+						if( defined $multi and defined $second_final_quality_audio ) {
+							$link        =~ /(.*)(t_track_audio_bw_128_num_0)(.*?z32=)(.*)"/m;
+							$second_link_audio_url = $uri . "/" . $second_final_quality_audio . $3 . $4;
+						}
 							
 						$link_video_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
 						$link_video_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
@@ -3298,7 +3722,55 @@ sub http_child {
 						$link_audio_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
 						$link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
 						
-						my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+						if( defined $multi and defined $second_link_audio_url ) {
+							$second_link_audio_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
+							$second_link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
+						}
+						
+						if( $language eq "Deutsch" ) {
+							$language = "deu";
+						} elsif( $language eq "English" ) {
+							$language = "eng";
+						} elsif( $language eq "Français" ) {
+							$language = "fra";
+						} elsif( $language eq "Italiano" ) {
+							$language = "ita";
+						} elsif( $language eq "Español") {
+							$language = "spa";
+						} elsif( $language eq "Português" ) {
+							$language = "por";
+						} elsif( $language eq "Türkçe" ) {
+							$language = "tur";
+						} else {
+							$language = "mis";
+						}
+						
+						if( defined $second_language ) {
+							if( $second_language eq "Deutsch" ) {
+								$second_language = "deu";
+							} elsif( $second_language eq "English" ) {
+								$second_language = "eng";
+							} elsif( $second_language eq "Français" ) {
+								$second_language = "fra";
+							} elsif( $second_language eq "Italiano" ) {
+								$second_language = "ita";
+							} elsif( $second_language eq "Español") {
+								$second_language = "spa";
+							} elsif( $second_language eq "Português" ) {
+								$second_language = "por";
+							} elsif( $second_language eq "Türkçe" ) {
+								$second_language = "tur";
+							} else {
+								$second_language = "mis";
+							}
+						}
+						
+						my $m3u8;
+						if( defined $multi ) {
+							$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$second_language\",DEFAULT=NO,AUTOSELECT=YES,LANGUAGE=\"$second_language\",URI=\"$second_link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+						} else {
+							$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+						}
 						
 						# CACHE PLAYLIST
 						open my $cachedfile, ">", "$channel:$quality:$platform:cached";
@@ -3323,6 +3795,7 @@ sub http_child {
 				}
 			
 			}	
+			
 		
 		#
 		# PROVIDE ZATTOO RECORDING M3U8
@@ -3573,16 +4046,61 @@ sub http_child {
 					# SET FINAL AUDIO CODEC
 					my $final_quality_audio;
 					my $final_codec;
-						
+					my $second_final_quality_audio;
+					
+					# USER WANTS 2 AUDIO STREAMS
+					if( defined $multi ) {
+						# PROFILE 1: DOLBY 1 + STEREO 2
+						if( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_2/ and $multi eq "1" ) {
+							$final_quality_audio = "t_track_audio_bw_256_num_1";
+							$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_2";
+						# TRY TO USE PROFILE 2 WHEN SECOND STEREO STREAM DOES NOT EXIST: DOLBY 1 + STEREO 1
+						} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_0/ and $multi eq "1" ) {
+							$final_quality_audio = "t_track_audio_bw_256_num_1";
+							$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+						# PROFILE 2: DOLBY 1 + STEREO 1
+						} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_0/ and $multi eq "2" ) {
+							$final_quality_audio = "t_track_audio_bw_256_num_1";
+							$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+						# PROFILE 3: STEREO 1 + STEREO 2 (DOLBY SUPPORTED)
+						} elsif( $link =~ m/t_track_audio_bw_128_num_0/ and $link =~ m/t_track_audio_bw_128_num_2/ and $multi eq "3" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_2";
+						# PROFILE 3: STEREO 1 + STEREO 2 (NO DOLBY SUPPORT)
+						} elsif( $link =~ m/t_track_audio_bw_128_num_0/ and $link =~ m/t_track_audio_bw_128_num_1/ and $multi eq "3" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_1";
+						# SELECTED DOLBY PROFILE IS NOT SUPPORTED: TRY TO USE PROFILE 3
+						} elsif( $link =~ m/t_track_audio_bw_128_num_0/ and $link =~ m/t_track_audio_bw_128_num_1/ ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_1";
+							$multi = "3";
+						# SELECTED PROFILE IS NOT SUPPORTED + PROFILE 3 IS NOT SUPPORTED: STEREO 1 DUPLICATE
+						} else {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+							$multi = "3";
+						}
 					# USER WANTS 2ND DOLBY AUDIO STREAM
-					if( defined $dolby and defined $audio2 ) {
+					} elsif( defined $dolby and defined $audio2 ) {
 						# AUDIO 2, DOLBY SUPPORTED
 						if( $link =~ m/t_track_audio_bw_256_num_3/ and $audio2 eq "true" and $dolby eq "true" ) {
 							$final_quality_audio = "t_track_audio_bw_256_num_3";
 							$final_codec = "avc1.4d4020,ec-3";
-						# AUDIO 2, NO DOLBY SUPPORT
+						# AUDIO 2, DOLBY SUPPORT FOR AUDIO 1 ONLY
 						} elsif( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" and $dolby eq "true" ) {
 							$final_quality_audio = "t_track_audio_bw_128_num_2";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+						# AUDIO 2, NO DOLBY SUPPORT FOR AUDIO 1
+						} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" and $dolby eq "true" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_1";
 							$final_codec = "avc1.4d4020,mp4a.40.2";
 						# AUDIO 2 UNAVAILABLE, DOLBY SUPPORTED
 						} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $audio2 eq "true" and $dolby eq "true" ) {
@@ -3606,9 +4124,13 @@ sub http_child {
 						}
 					# USER WANTS 2ND STEREO AUDIO STREAM
 					} elsif( defined $audio2 ) {
-						# AUDIO 2 AVAILABLE
+						# AUDIO 2 AVAILABLE, DOLBY SUPPORTED FOR AUDIO 1
 						if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
 							$final_quality_audio = "t_track_audio_bw_128_num_2";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+						# AUDIO 2 AVAILABLE, NO DOLBY SUPPORT FOR AUDIO 1
+						} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_1";
 							$final_codec = "avc1.4d4020,mp4a.40.2";
 						# AUDIO 2 UNAVAILABLE
 						} else {
@@ -3626,12 +4148,65 @@ sub http_child {
 					$link        =~ /(.*)(NAME=")(.*)(",DEFAULT.*)($final_quality_audio.*?z32=)(.*)"/m;
 					my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $6;
 					my $link_audio_url = $uri . "/" . $5 . $6;
-					my $language       = $3;
+					my $language = $3;
+						
+					if( $language eq "Deutsch" ) {
+						$language = "deu";
+					} elsif( $language eq "English" ) {
+						$language = "eng";
+					} elsif( $language eq "Français" ) {
+						$language = "fra";
+					} elsif( $language eq "Italiano" ) {
+						$language = "ita";
+					} elsif( $language eq "Español") {
+						$language = "spa";
+					} elsif( $language eq "Português" ) {
+						$language = "por";
+					} elsif( $language eq "Türkçe" ) {
+						$language = "tur";
+					} else {
+						$language = "mis";
+					}
+					
+					my $second_link_audio_url;
+					my $second_language;
+					if( defined $multi and defined $second_final_quality_audio ) {
+						$link        =~ /(.*)(NAME=")(.*)(",DEFAULT=.*)($second_final_quality_audio.*?z32=)(.*)"/m;
+						$second_link_audio_url = $uri . "/" . $5 . $6;
+						$second_language       = $3;
+						
+						if( $second_language eq "Deutsch" ) {
+							$second_language = "deu";
+						} elsif( $second_language eq "English" ) {
+							$second_language = "eng";
+						} elsif( $second_language eq "Français" ) {
+							$second_language = "fra";
+						} elsif( $second_language eq "Italiano" ) {
+							$second_language = "ita";
+						} elsif( $second_language eq "Español") {
+							$second_language = "spa";
+						} elsif( $second_language eq "Português" ) {
+							$second_language = "por";
+						} elsif( $second_language eq "Türkçe" ) {
+							$second_language = "tur";
+						} else {
+							$second_language = "mis";
+						}
+					}
 					
 					$link_video_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-pvr.zahs.tv/g;
 					$link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-pvr.zahs.tv/g;
+						
+					if( defined $multi and defined $second_link_audio_url ) {
+						$second_link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-pvr.zahs.tv/g;
+					}
 					
-					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+					my $m3u8;
+					if( defined $multi ) {
+						$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$second_language\",DEFAULT=NO,AUTOSELECT=YES,LANGUAGE=\"$second_language\",URI=\"$second_link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+					} else {
+						$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+					}
 					
 					# CACHE PLAYLIST
 					open my $cachedfile, ">", "$rec_ch:$quality:$platform:cached";
@@ -3826,10 +4401,68 @@ sub http_child {
 					# SET FINAL AUDIO CODEC + LANGUAGE
 					my $final_quality_audio;
 					my $final_codec;
+					my $second_final_quality_audio;
 					my $language;
-						
+					my $second_language;
+					
+					# USER WANTS 2 AUDIO STREAMS
+					if( defined $multi ) {
+						# PROFILE 1: DOLBY 1 + STEREO 2
+						if( $link =~ m/t_track_audio_bw_128_num_2/ and $multi eq "1" ) {
+							$final_quality_audio = "t_track_audio_bw_256_num_1";
+							$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_2";
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+							$language = $3;
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+							$second_language = $3;
+						# TRY TO USE PROFILE 2 WHEN SECOND STEREO STREAM DOES NOT EXIST: DOLBY 1 + STEREO 1
+						} elsif( $multi eq "1" ) {
+							$final_quality_audio = "t_track_audio_bw_256_num_1";
+							$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+							$language = $3;
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+							$second_language = $3;
+						# PROFILE 2: DOLBY 1 + STEREO 1
+						} elsif( $multi eq "2" ) {
+							$final_quality_audio = "t_track_audio_bw_256_num_1";
+							$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+							$language = $3;
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+							$second_language = $3;
+						# PROFILE 3: STEREO 1 + STEREO 2 (DOLBY SUPPORTED)
+						} elsif( $link =~ m/t_track_audio_bw_128_num_2/ and $multi eq "3" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_2";
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+							$language = $3;
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+							$second_language = $3;
+						# PROFILE 3: STEREO 1 + STEREO 2 (NO DOLBY SUPPORT)
+						} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $multi eq "3" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_1";
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+							$language = $3;
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_1.*)/m;
+							$second_language = $3;
+						# SELECTED PROFILE IS NOT SUPPORTED + PROFILE 3 IS NOT SUPPORTED: STEREO 1 DUPLICATE
+						} else {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+							$language = $3;
+							$multi = "3";
+						}	
 					# USER WANTS 2ND DOLBY AUDIO STREAM
-					if( defined $dolby and defined $audio2 ) {
+					} elsif( defined $dolby and defined $audio2 ) {
 						# AUDIO 2, DOLBY SUPPORTED
 						if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" and $dolby eq "true" ) {
 							$final_quality_audio = "t_track_audio_bw_256_num_3";
@@ -3852,11 +4485,17 @@ sub http_child {
 						$language = $3;
 					# USER WANTS 2ND STEREO AUDIO STREAM
 					} elsif( defined $audio2 ) {
-						# AUDIO 2
+						# AUDIO 2, DOLBY SUPPORTED
 						if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
 							$final_quality_audio = "t_track_audio_bw_128_num_2";
 							$final_codec = "avc1.4d4020,mp4a.40.2";
 							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+							$language = $3;
+						# AUDIO 2, NO DOLBY SUPPORT
+						} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" ) {
+							$final_quality_audio = "t_track_audio_bw_128_num_1";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_1.*)/m;
 							$language = $3;
 						# AUDIO 2 UNAVAILABLE
 						} else {
@@ -3879,10 +4518,63 @@ sub http_child {
 					my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $4;
 					my $link_audio_url = $uri . "/" . $final_quality_audio . $3 . $4;
 					
+					my $second_link_audio_url;
+					if( defined $multi and defined $second_final_quality_audio ) {
+						$link        =~ /(.*)(t_track_audio_bw_128_num_0)(.*?z32=)(.*)"/m;
+						$second_link_audio_url = $uri . "/" . $second_final_quality_audio . $3 . $4;
+					}
+					
 					$link_video_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-pvr.zahs.tv/g;
 					$link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-pvr.zahs.tv/g;
 					
-					my $m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+					if( defined $multi and defined $second_link_audio_url ) {
+						$second_link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-pvr.zahs.tv/g;
+					}
+					
+					if( $language eq "Deutsch" ) {
+						$language = "deu";
+					} elsif( $language eq "English" ) {
+						$language = "eng";
+					} elsif( $language eq "Français" ) {
+						$language = "fra";
+					} elsif( $language eq "Italiano" ) {
+						$language = "ita";
+					} elsif( $language eq "Español") {
+						$language = "spa";
+					} elsif( $language eq "Português" ) {
+						$language = "por";
+					} elsif( $language eq "Türkçe" ) {
+						$language = "tur";
+					} else {
+						$language = "mis";
+					}
+						
+					if( defined $second_language ) {
+						if( $second_language eq "Deutsch" ) {
+							$second_language = "deu";
+						} elsif( $second_language eq "English" ) {
+							$second_language = "eng";
+						} elsif( $second_language eq "Français" ) {
+							$second_language = "fra";
+						} elsif( $second_language eq "Italiano" ) {
+							$second_language = "ita";
+						} elsif( $second_language eq "Español") {
+						$second_language = "spa";
+						} elsif( $second_language eq "Português" ) {
+							$second_language = "por";
+						} elsif( $second_language eq "Türkçe" ) {
+							$second_language = "tur";
+						} else {
+							$second_language = "mis";
+						}
+					}
+					
+					my $m3u8;
+					if( defined $multi ) {
+						$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$second_language\",DEFAULT=NO,AUTOSELECT=YES,LANGUAGE=\"$second_language\",URI=\"$second_link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+					} else {
+						$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+					}
 					
 					# CACHE PLAYLIST
 					open my $cachedfile, ">", "$rec_ch:$quality:$platform:cached";
@@ -4020,6 +4712,3 @@ sub http_child {
 		}
 	}
 }
-
-
-close(STDOUT);
