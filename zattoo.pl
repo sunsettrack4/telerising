@@ -27,7 +27,7 @@ my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
 print "\n=======================\n";
-print   " TELERISING API v0.2.9 \n";
+print   " TELERISING API v0.3.0 \n";
 print   "=======================\n\n";
 
 print "(c) 2019-2020 Jan-Luca Neumann (sunsettrack4)\n";
@@ -2852,8 +2852,8 @@ sub http_child {
 			
 			# LOAD EPG
 			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Requesting EPG\n";
-			my $start   = time()-432000;
-			my $stop    = time()-432000;
+			my $start   = time()-300;
+			my $stop    = time()-300;
 			my $epg_url = "https://$provider/zapi/v3/cached/$powerid/guide?start=$start&end=$stop";
 			
 			my $epg_agent = LWP::UserAgent->new(
@@ -3615,7 +3615,7 @@ sub http_child {
 								$second_final_quality_audio = "t_track_audio_bw_128_num_0";
 								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
 								$language = $3;
-								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
 								$second_language = $3;
 							# PROFILE 2: DOLBY 1 + STEREO 1
 							} elsif( $multi eq "2" ) {
@@ -3624,7 +3624,7 @@ sub http_child {
 								$second_final_quality_audio = "t_track_audio_bw_128_num_0";
 								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
 								$language = $3;
-								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
 								$second_language = $3;
 							# PROFILE 3: STEREO 1 + STEREO 2 (DOLBY SUPPORTED)
 							} elsif( $link =~ m/t_track_audio_bw_128_num_2/ and $multi eq "3" ) {
@@ -3651,7 +3651,8 @@ sub http_child {
 								$second_final_quality_audio = "t_track_audio_bw_128_num_0";
 								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
 								$language = $3;
-								$multi = "3";
+								$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+								$second_language = $3;
 							}
 						# USER WANTS 2ND DOLBY AUDIO STREAM
 						} elsif( defined $dolby and defined $audio2 ) {
@@ -4423,7 +4424,7 @@ sub http_child {
 							$second_final_quality_audio = "t_track_audio_bw_128_num_0";
 							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
 							$language = $3;
-							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
 							$second_language = $3;
 						# PROFILE 2: DOLBY 1 + STEREO 1
 						} elsif( $multi eq "2" ) {
@@ -4432,7 +4433,7 @@ sub http_child {
 							$second_final_quality_audio = "t_track_audio_bw_128_num_0";
 							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
 							$language = $3;
-							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_2.*)/m;
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
 							$second_language = $3;
 						# PROFILE 3: STEREO 1 + STEREO 2 (DOLBY SUPPORTED)
 						} elsif( $link =~ m/t_track_audio_bw_128_num_2/ and $multi eq "3" ) {
@@ -4459,7 +4460,8 @@ sub http_child {
 							$second_final_quality_audio = "t_track_audio_bw_128_num_0";
 							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
 							$language = $3;
-							$multi = "3";
+							$link =~ /(.*)(NAME=")(.*)(",DEFAULT.*)(t_track_audio_bw_128_num_0.*)/m;
+							$second_language = $3;
 						}	
 					# USER WANTS 2ND DOLBY AUDIO STREAM
 					} elsif( defined $dolby and defined $audio2 ) {

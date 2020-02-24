@@ -79,7 +79,7 @@ sudo cpan install IO::Interface::Simple
 sudo cpan install IO::Socket::SSL
 sudo cpan install Mozilla::CA
 sudo cpan install Encode
-sudo cpan install IO:Tee
+sudo cpan install IO::Tee
 sudo cpan install POSIX
 sudo cpan install utf8
 
@@ -87,13 +87,13 @@ sudo cpan install utf8
 mkdir ~/telerising
 
 # Download the .zip file and extract the files into your folder:
-wget https://github.com/sunsettrack4/telerising/archive/v0.2.9.zip
+wget https://github.com/sunsettrack4/telerising/archive/v0.3.0.zip
 
 # Unzip the file:
-unzip v0.2.9.zip
+unzip v0.3.0.zip
 
 # Move all script files to the created folder
-mv ~/telerising-0.2.9/* ~/telerising/
+mv ~/telerising-0.3.0/* ~/telerising/
 
 # Set system-wide permissions to the folder and its related files
 sudo chmod 0777 ~/telerising
@@ -184,12 +184,16 @@ platform=hls5 - for: ffmpeg, tvHeadend
 ```
 favorites=true * - create M3U with favorite channels only (Zattoo)
 ffmpeg=true * - create pipe:// references to be used for tvHeadend
+remove=true - remove recording
+
+# ONE AUDIO STREAM
 dolby=true * - use Dolby audio (HLS5 only)
 audio2=true * - use 2nd audio stream (HLS5 only)
-remove=true - remove recording
-profile=1 - use 1st Dolby + 2nd Stereo audio stream (HLS5 only)
-profile=2 - use 1st Dolby + 1st Stereo audio stream (HLS5 only)
-profile=3 - use 1st Stereo + 2nd Stereo audio stream (HLS5 only)
+
+# TWO AUDIO STREAMS
+profile=1 * - use 1st Dolby + 2nd Stereo audio stream (HLS5 only)
+profile=2 * - use 1st Dolby + 1st Stereo audio stream (HLS5 only)
+profile=3 * - use 1st Stereo + 2nd Stereo audio stream (HLS5 only)
 ```
 
 #### Custom server list
