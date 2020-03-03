@@ -3,6 +3,9 @@
 #      Copyright (C) 2019-2020 Jan-Luca Neumann
 #      https://github.com/sunsettrack4/telerising/
 #
+#      Collaborators:
+#      - DeBaschdi ( https://github.com/DeBaschdi )
+#
 #  This Program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation; either version 3, or (at your option)
@@ -14,24 +17,44 @@
 #  GNU General Public License for more details.
 #
 #  You should have received a copy of the GNU General Public License
-#  along with zattoo_tvh. If not, see <http://www.gnu.org/licenses/>.
+#  along with telerising. If not, see <http://www.gnu.org/licenses/>.
 
 # ####################################
 # TELERISING API FOR ZATTOO + WILMAA #
 # ####################################
 
 unlink "log.txt";
+unlink "error.txt";
+
 
 use IO::Tee;
 my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
 print "\n=======================\n";
-print   " TELERISING API v0.3.0 \n";
+print   " TELERISING API v0.3.1 \n";
 print   "=======================\n\n";
 
 print "(c) 2019-2020 Jan-Luca Neumann (sunsettrack4)\n";
 print "Please donate to support my work: https://paypal.me/sunsettrack4\n\n";
+
+
+use Log::Log4perl qw(:easy);
+Log::Log4perl->easy_init($INFO);
+
+my $logConfiguration = qq(
+log4perl.logger        = INFO, Logfile, Screen
+log4perl.appender.Logfile          =  Log::Log4perl::Appender::File
+log4perl.appender.Logfile.filename = log.txt
+log4perl.appender.Logfile.layout   = Log::Log4perl::Layout::PatternLayout
+log4perl.appender.Logfile.layout.ConversionPattern =%p[%d{MM/dd HH:mm} %3L] %m%n
+log4perl.appender.Screen         = Log::Log4perl::Appender::Screen
+log4perl.appender.Screen.stderr  = 0
+log4perl.appender.Screen.layout = Log::Log4perl::Layout::SimpleLayout
+log4perl.appender.Screen.layout.ConversionPattern = %m%n
+);
+
+Log::Log4perl::init( \$logConfiguration );
 
 use strict;
 use warnings;
@@ -64,7 +87,6 @@ use POSIX qw( strftime );
 #
 
 sub login_process {
-	
 	my $login;
 	
 	unless( $login = fork() ) {
@@ -87,7 +109,7 @@ sub login_process {
 			};
 			
 			if( not defined $userfile ) {
-				print "ERROR: Unable to parse user data\n\n";
+				ERROR "ERROR: Unable to parse user data\n\n";
 				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 				print $error_file "ERROR: Unable to parse user data";
 				close $error_file;
@@ -107,14 +129,14 @@ sub login_process {
 			my $ssl_verify;
 			
 			if( not defined $provider ) {
-				print "ERROR: No provider selected\n\n";
+				ERROR "ERROR: No provider selected\n\n";
 				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 				print $error_file "ERROR: No provider selected";
 				close $error_file;
 				exit;
 			} elsif( $provider ne "wilmaa.com" ) {
 				if( not defined $login_mail or not defined $login_passwd ) {
-					print "ERROR: Unable to retrieve complete login data\n\n";
+					ERROR "ERROR: Unable to retrieve complete login data\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: Unable to retrieve complete login data";
 					close $error_file;
@@ -122,13 +144,13 @@ sub login_process {
 				}
 			} elsif( $provider eq "wilmaa.com" ) {
 				if( not defined $login_mail and defined $login_passwd ) {
-					print "ERROR: Unable to retrieve complete login data\n\n";
+					ERROR "ERROR: Unable to retrieve complete login data\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: Unable to retrieve complete login data";
 					close $error_file;
 					exit;
 				} elsif( defined $login_mail and not defined $login_passwd ) {
-					print "ERROR: Unable to retrieve complete login data\n\n";
+					ERROR "ERROR: Unable to retrieve complete login data\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: Unable to retrieve complete login data";
 					close $error_file;
@@ -143,11 +165,11 @@ sub login_process {
 			} elsif( defined $customip ) {
 				if( $customip ne "" ) {
 					$interface = "";
-					print "NOTICE: Custom IP address or domain \"$customip\" will be used.\n\n";
+					INFO "Custom IP address or domain \"$customip\" will be used.\n\n";
 				} elsif( defined $interface ) {
 					if( $interface ne "" ) {
 						$customip = "";
-						print "NOTICE: Custom interface \"$interface\" will be used.\n\n";
+						INFO "Custom interface \"$interface\" will be used.\n\n";
 					} else {
 						$customip  = "";
 						$interface = "";
@@ -159,7 +181,7 @@ sub login_process {
 			} elsif( defined $interface ) {
 				if( $interface ne "" ) {
 					$customip = "";
-					print "NOTICE: Custom interface \"$interface\" will be used.\n\n";
+					INFO "Custom interface \"$interface\" will be used.\n\n";
 				} else {
 					$customip  = "";
 					$interface = "";
@@ -170,10 +192,10 @@ sub login_process {
 				$zserver = "fr5-0";
 			} elsif( $zserver eq "" ) {
 				$zserver = "fr5-0";
-			} elsif( $zserver =~ /fr5-[0-5]|zh2-[0-9]|zba6-[0-2]|1und1-fra1902-[1-4]|1und1-hhb1000-[1-4]|1und1-dus1901-[1-4]|1und1-ess1901-[1-2]|matterlau1-[0-1]|matterzrh1-[0-1]/ ) {
-				print "NOTICE: Custom Zattoo server \"$zserver\" will be used.\n\n";
+			} elsif( $zserver =~ /fr5-[0-5]|fra3-[0-3]|zh2-[0-9]|zba6-[0-2]|1und1-fra1902-[1-4]|1und1-hhb1000-[1-4]|1und1-dus1901-[1-4]|1und1-ess1901-[1-2]|matterlau1-[0-1]|matterzrh1-[0-1]/ ) {
+				INFO "Custom Zattoo server \"$zserver\" will be used.\n\n";
 			} else {
-				print "NOTICE: Custom Zattoo server \"$zserver\" is not supported, default server will be used instead.\n\n";
+				INFO "Custom Zattoo server \"$zserver\" is not supported, default server will be used instead.\n\n";
 				$zserver = "fr5-0";
 			}
 			
@@ -182,9 +204,9 @@ sub login_process {
 			} elsif( $ffmpeglib eq "" ) {
 				$ffmpeglib = "/usr/bin/ffmpeg";
 			} elsif( $ffmpeglib =~ /\/usr\/bin\/ffmpeg|\/bin\/ffmpeg|\/ramdisk\/ffmpeg/ ) {
-				print "NOTICE: Use custom ffmpeg library path \"$ffmpeglib\"\n\n";
+				INFO "Use custom ffmpeg library path \"$ffmpeglib\"\n\n";
 			} else {
-				print "NOTICE: ffmpeg library path \"$ffmpeglib\" is not supported, default library will be used instead.\n\n";
+				INFO "ffmpeg library path \"$ffmpeglib\" is not supported, default library will be used instead.\n\n";
 				$ffmpeglib = "/usr/bin/ffmpeg";
 			}
 			
@@ -193,7 +215,7 @@ sub login_process {
 			} elsif( $port eq "" ) {
 				$port = "8080";
 			} else {
-				print "NOTICE: Custom port \"$port\" will be used.\n\n";
+				INFO "Custom port \"$port\" will be used.\n\n";
 			}
 			
 			if( not defined $pin ) {
@@ -203,16 +225,16 @@ sub login_process {
 			} elsif( $pin eq "" ) {
 				$pin = "NONE";
 			} elsif( $pin =~ /[0-9][0-9][0-9][0-9]/ ) {
-				print "NOTICE: Youth protection pin will be used to request channel playlists.\n\n";
+				INFO "Youth protection pin will be used to request channel playlists.\n\n";
 			} else {
-				print "NOTICE: Youth protection pin must consist of 4 numbers - pin disabled.\n\n";
+				INFO "Youth protection pin must consist of 4 numbers - pin disabled.\n\n";
 				$pin = "NONE";
 			}
 			
 			if( not defined $ssl_mode ) {
 				$ssl_mode = "1";
 			} elsif( $ssl_mode eq "0" ) {
-				print "WARNING: SSL verification disabled!\n\n";
+				INFO "WARNING: SSL verification disabled!\n\n";
 			}
 			
 			# CHECK PROVIDER
@@ -221,7 +243,7 @@ sub login_process {
 			} elsif( $provider =~ /zattoo.com|wilmaa.com|www.1und1.tv|mobiltv.quickline.com|tvplus.m-net.de|player.waly.tv|www.meinewelt.cc|www.bbv-tv.net|www.vtxtv.ch|www.myvisiontv.ch|iptv.glattvision.ch|www.saktv.ch|nettv.netcologne.de|tvonline.ewe.de|www.quantum-tv.com|tv.salt.ch|tvonline.swb-gruppe.de|tv.eir.ie/ ) {
 				print "";
 			} else {
-				print "ERROR: Provider is not supported. Please recheck the domain.\n\n";
+				ERROR "ERROR: Provider is not supported. Please recheck the domain.\n\n";
 				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 				print $error_file "ERROR: Provider is not supported. Please recheck the domain.";
 				close $error_file;
@@ -253,8 +275,8 @@ sub login_process {
 				my $channel_response = $channel_agent->request($channel_request);
 				
 				if( $channel_response->is_error ) {
-					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: IP lookup: Invalid response\n\n";
-					print "RESPONSE:\n\n" . $channel_response->content . "\n\n";
+					ERROR "ERROR: IP lookup: Invalid response\n\n";
+					ERROR "RESPONSE:\n\n" . $channel_response->content . "\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: IP lookup: Invalid response";
 					close $error_file;
@@ -269,7 +291,7 @@ sub login_process {
 				};
 				
 				if( not defined $ch_file ) {
-					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Failed to parse JSON file(s) (IP LOOKUP)\n\n";
+					ERROR "ERROR: Failed to parse JSON file(s) (IP LOOKUP)\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: Failed to parse JSON file(s) (IP LOOKUP)";
 					close $error_file;
@@ -291,25 +313,25 @@ sub login_process {
 				}
 				
 				if( $country_code ne "CH" and defined $login_mail and defined $login_passwd ) {
-					print "--- YOUR ACCOUNT TYPE: WILMAA ---\n\n";
-					print "--- COUNTRY: OTHER ---\n\n";
-					print "NOTICE: No Swiss IP address detected, Live TV feature is disabled.\n\n";
+					INFO "--- YOUR ACCOUNT TYPE: WILMAA ---\n\n";
+					INFO "--- COUNTRY: OTHER ---\n\n";
+					INFO "No Swiss IP address detected, Live TV feature is disabled.\n\n";
 					$tv_mode = "pvr";
 				} elsif( $country_code ne "CH" ) {
-					print "--- YOUR ACCOUNT TYPE: WILMAA (ANONYMOUS) ---\n\n";
-					print "--- COUNTRY: OTHER ---\n\n";
-					print "ERROR: No valid service country detected, Wilmaa services can't be used.\n\n";
+					INFO "--- YOUR ACCOUNT TYPE: WILMAA (ANONYMOUS) ---\n\n";
+					INFO "--- COUNTRY: OTHER ---\n\n";
+					INFO "ERROR: No valid service country detected, Wilmaa services can't be used.\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: No valid service country detected, Wilmaa services can't be used.";
 					close $error_file;
 					exit;
 				} elsif( $country_code eq "CH" and defined $login_mail and defined $login_passwd ) {
-					print "--- YOUR ACCOUNT TYPE: WILMAA ---\n\n";
-					print "--- COUNTRY: SWITZERLAND ---\n\n";
+					INFO "--- YOUR ACCOUNT TYPE: WILMAA ---\n\n";
+					INFO "--- COUNTRY: SWITZERLAND ---\n\n";
 					$tv_mode = "live";
 				} else {
-					print "--- YOUR ACCOUNT TYPE: WILMAA (ANONYMOUS) ---\n\n";
-					print "--- COUNTRY: SWITZERLAND ---\n\n";
+					INFO "--- YOUR ACCOUNT TYPE: WILMAA (ANONYMOUS) ---\n\n";
+					INFO "--- COUNTRY: SWITZERLAND ---\n\n";
 					$tv_mode = "live";
 				}
 				
@@ -334,7 +356,7 @@ sub login_process {
 					if( defined $session_token ) {
 						$session_token       =~ s/(.*)(wilmaa=)(.*)(; expires.*)/$3/g;
 					} else {
-						print "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)\n\n";
+						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)\n\n";
 						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)";
 						close $error_file;
@@ -345,7 +367,7 @@ sub login_process {
 					my $main_content  = $main_response->content;
 
 					if( not defined $main_content) {
-						print "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)\n\n";
+						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)\n\n";
 						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)";
 						close $error_file;
@@ -356,7 +378,7 @@ sub login_process {
 					$wilmaatree->parse($main_content);
 
 					if( not defined $wilmaatree) {
-						print "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)\n\n";
+						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)\n\n";
 						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)";
 						close $error_file;
@@ -369,7 +391,7 @@ sub login_process {
 					if( defined $apptoken ) {
 						$apptoken        =~ s/(.*value=")(.*)(".*)/$2/g;
 					} else {
-						print "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)\n\n";
+						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)\n\n";
 						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)";
 						close $error_file;
@@ -397,13 +419,13 @@ sub login_process {
 					my $login_user     = $login_response->header('set-cookie');
 					
 					if( not defined $login_user ) {
-						print "LOGIN FAILED! (please re-check login data)\n\n";
+						ERROR "LOGIN FAILED! (please re-check login data)\n\n";
 						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "LOGIN FAILED! (please re-check login data)";
 						close $error_file;
 						exit;
 					} else {
-						print "LOGIN OK!\n\n";
+						INFO "LOGIN OK!\n\n";
 					}
 					
 					$login_user       =~ s/(.*)(wilmaa_user_id=)(.*)(; expires.*)(wilmaa_onboarding_user_id.*)/$3/g;
@@ -414,7 +436,7 @@ sub login_process {
 					close $session_file;
 					
 					sleep 86400;
-					unlink "log.txt";
+					truncate 'log.txt', 0;
 				
 				}
 				
@@ -424,7 +446,7 @@ sub login_process {
 				close $session_file;
 				
 				sleep 86400;
-				unlink "log.txt";
+				truncate 'log.txt', 0;
 				
 			} else {
 				
@@ -448,8 +470,8 @@ sub login_process {
 				my $main_response = $main_agent->request($main_request);
 
 				if( $main_response->is_error ) {
-					print "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
-					print "RESPONSE:\n\n" . $main_response->content . "\n\n";
+					ERROR "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
+					ERROR "RESPONSE:\n\n" . $main_response->content . "\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)";
 					close $error_file;
@@ -460,7 +482,7 @@ sub login_process {
 				my $main_content  = $main_response->content;
 
 				if( not defined $main_content) {
-					print "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)\n\n";
+					ERROR "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)";
 					close $error_file;
@@ -471,7 +493,7 @@ sub login_process {
 				$zattootree->parse($main_content);
 
 				if( not defined $zattootree) {
-					print "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)\n\n";
+					ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)";
 					close $error_file;
@@ -484,7 +506,7 @@ sub login_process {
 				if( defined $apptoken ) {
 					$apptoken        =~ s/(.*window.appToken = ')(.*)(';.*)/$2/g;
 				} else {
-					print "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)\n\n";
+					ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)";
 					close $error_file;
@@ -510,7 +532,7 @@ sub login_process {
 				if( defined $session_token ) {
 					$session_token       =~ s/(.*)(beaker.session.id=)(.*)(; Path.*)/$3/g;
 				} else {
-					print "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)\n\n";
+					ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)";
 					close $error_file;
@@ -518,8 +540,8 @@ sub login_process {
 				}
 
 				if( $session_response->is_error ) {
-					print "LOGIN FAILED! (invalid response)\n\n";
-					print "RESPONSE:\n\n" . $session_response->content . "\n\n";
+					ERROR "LOGIN FAILED! (invalid response)\n\n";
+					ERROR "RESPONSE:\n\n" . $session_response->content . "\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "LOGIN FAILED! (invalid response)";
 					close $error_file;
@@ -546,14 +568,14 @@ sub login_process {
 				my $login_response = $login_agent->request($login_request);
 
 				if( $login_response->is_error ) {
-					print "LOGIN FAILED! (please re-check login data)\n\n";
-					print "RESPONSE:\n\n" . $login_response->content . "\n\n";
+					ERROR "LOGIN FAILED! (please re-check login data)\n\n";
+					ERROR "RESPONSE:\n\n" . $login_response->content . "\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "LOGIN FAILED! (please re-check login data)";
 					close $error_file;
 					exit;
 				} else {
-					print "LOGIN OK!\n\n";
+					INFO "LOGIN OK!\n\n";
 				}
 
 				my $login_token    = $login_response->header('Set-cookie');
@@ -567,7 +589,7 @@ sub login_process {
 				};
 
 				if( not defined $analyse_login ) {
-					print "ERROR: Unable to parse user data\n\n";
+					ERROR "ERROR: Unable to parse user data\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: Unable to parse user data";
 					close $error_file;
@@ -596,12 +618,12 @@ sub login_process {
 				}
 				
 				if( $country eq "CH" ) {
-					print "--- COUNTRY: SWITZERLAND ---\n\n";
+					INFO "--- COUNTRY: SWITZERLAND ---\n\n";
 				} elsif( $country eq "DE" ) {
-					print "--- COUNTRY: GERMANY ---\n\n";
+					INFO "--- COUNTRY: GERMANY ---\n\n";
 				} elsif( $provider eq "zattoo.com" ) {
-					print "--- COUNTRY: OTHER ---\n\n";
-					print "ERROR: No valid service country detected, Zattoo services can't be used.\n\n";
+					ERROR "--- COUNTRY: OTHER ---\n\n";
+					ERROR "ERROR: No valid service country detected, Zattoo services can't be used.\n\n";
 					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: No valid service country detected, Zattoo services can't be used.";
 					close $error_file;
@@ -612,15 +634,15 @@ sub login_process {
 
 				if( defined $product_code ) {
 					if( $product_code eq "PREMIUM" ) {
-						print "--- YOUR ACCOUNT TYPE: ZATTOO PREMIUM ---\n\n";
+						INFO "--- YOUR ACCOUNT TYPE: ZATTOO PREMIUM ---\n\n";
 					} elsif( $product_code eq "ULTIMATE" ) {
-						print "--- YOUR ACCOUNT TYPE: ZATTOO ULTIMATE ---\n\n";
+						INFO "--- YOUR ACCOUNT TYPE: ZATTOO ULTIMATE ---\n\n";
 					}
 				} elsif( $provider eq "zattoo.com" ) {
-					print "--- YOUR ACCOUNT TYPE: ZATTOO FREE ---\n\n";
+					INFO "--- YOUR ACCOUNT TYPE: ZATTOO FREE ---\n\n";
 					$product_code = "FREE";
 				} else {
-					print "--- YOUR ACCOUNT TYPE: RESELLER ---\n\n";
+					INFO "--- YOUR ACCOUNT TYPE: RESELLER ---\n\n";
 				}
 
 				my $tv_mode;
@@ -628,10 +650,10 @@ sub login_process {
 				if( $country eq "CH" and $provider eq "zattoo.com" ) {
 					
 					if( $alias ne "CH" and $product_code ne "FREE" ) {
-						print "NOTICE: No Swiss IP address detected, using PVR mode for Live TV.\n\n";
+						INFO "No Swiss IP address detected, using PVR mode for Live TV.\n\n";
 						$tv_mode = "pvr";
 					} elsif ( $alias ne "CH" and $product_code eq "FREE" ) {
-						print "ERROR: No Swiss IP address detected, Zattoo services can't be used.\n\n";
+						ERROR "ERROR: No Swiss IP address detected, Zattoo services can't be used.\n\n";
 						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "ERROR: No Swiss IP address detected, Zattoo services can't be used.";
 						close $error_file;
@@ -643,14 +665,14 @@ sub login_process {
 				} elsif( $country eq "DE" and $provider eq "zattoo.com" ) {
 					
 					if( $alias ne "DE" and $product_code eq "FREE" ) {
-						print "ERROR: No German IP address detected, Zattoo services can't be used.\n\n";
+						ERROR "ERROR: No German IP address detected, Zattoo services can't be used.\n\n";
 						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "ERROR: No German IP address detected, Zattoo services can't be used.";
 						close $error_file;
 						exit;
 					} elsif( $alias ne "DE" and $product_code =~ /PREMIUM|ULTIMATE/ ) {
 						if( $alias =~ /BE|FR|IT|LU|NL|DK|IE|UK|GR|PT|ES|FI|AT|SE|EE|LT|LV|MT|PL|SK|SI|CZ|HU|CY|BG|RO|HR|GP|GY|MQ|RE|YT|AN/ ) {
-							print "NOTICE: No German IP address detected, Zattoo services can be used within the EU.\n\n";
+							INFO "No German IP address detected, Zattoo services can be used within the EU.\n\n";
 							$tv_mode = "live";
 						}
 					} else {
@@ -667,7 +689,7 @@ sub login_process {
 				close $session_file;
 				
 				sleep 86400;
-				unlink "log.txt";
+				truncate 'log.txt', 0;
 			
 			}
 		
@@ -682,7 +704,11 @@ unlink "session.json";
 login_process();
 
 until( -e "session.json" ) {
-	if( open my $fh, "<", "error.txt" ) {
+	if( -e "error.txt" ) {
+		open( my $fh, "<", "error.txt" );
+		my $file_content = do { local $/; <$fh> };
+		print $file_content;
+		close $fh;
 		unlink "error.txt";
 		print "API PROCESS STOPPED!\n\n";
 		exit;
@@ -2103,7 +2129,7 @@ sub http_child {
 					if( $check =~ m/\.75/ ) {
 						
 						my $utc = (($check*4000)-3000);
-						my $utcvalue = (($check*4)-3);
+						my $utcvalue = ((($check*4)-3)-36);
 						
 						my $stamp  = (($check*4000)-3000)-($zstart*1000);
 						my $stamp2 = $stamp+4000;
@@ -2145,7 +2171,7 @@ sub http_child {
 					} elsif( $check =~ m/\.5/ ) {
 						
 						my $utc = (($check*4000)-2000);
-						my $utcvalue = (($check*4)-2);
+						my $utcvalue = ((($check*4)-2)-36);
 						
 						my $stamp  = (($check*4000)-2000)-($zstart*1000);
 						my $stamp2 = $stamp+4000;
@@ -2187,7 +2213,7 @@ sub http_child {
 					} elsif( $check =~ m/\.25/ ) {
 						
 						my $utc = (($check*4000)-1000);
-						my $utcvalue = (($check*4)-1);
+						my $utcvalue = ((($check*4)-1)-36);
 						
 						my $stamp  = (($check*4000)-1000)-($zstart*1000);
 						my $stamp2 = $stamp+4000;
@@ -2228,7 +2254,7 @@ sub http_child {
 					} else {
 						
 						my $utc = ($check*4000);
-						my $utcvalue = ($check*4);
+						my $utcvalue = (($check*4)-36);
 						
 						my $stamp  = ($check*4000)-($zstart*1000);
 						my $stamp2 = $stamp+4000;
@@ -2277,7 +2303,7 @@ sub http_child {
 					if( $check =~ m/\.75/ ) {
 						
 						my $utc = (($check*4000)-3000);
-						my $utcvalue = (($check*4)-3);
+						my $utcvalue = ((($check*4)-3)-36);
 						
 						my $stamp  = (($check*4000)-3000)-($zstart*1000);
 						my $stamp2 = $stamp+4000;
@@ -2302,7 +2328,7 @@ sub http_child {
 					} elsif( $check =~ m/\.5/ ) {
 						
 						my $utc = (($check*4000)-2000);
-						my $utcvalue = (($check*4)-2);
+						my $utcvalue = ((($check*4)-2)-36);
 						
 						my $stamp  = (($check*4000)-2000)-($zstart*1000);
 						my $stamp2 = $stamp+4000;
@@ -2327,7 +2353,7 @@ sub http_child {
 					} elsif( $check =~ m/\.25/ ) {
 						
 						my $utc = (($check*4000)-1000);
-						my $utcvalue = (($check*4)-1);
+						my $utcvalue = ((($check*4)-1)-36);
 						
 						my $stamp  = (($check*4000)-1000)-($zstart*1000);
 						my $stamp2 = $stamp+4000;
@@ -2352,7 +2378,7 @@ sub http_child {
 					} else {
 						
 						my $utc = ($check*4000);
-						my $utcvalue = ($check*4);
+						my $utcvalue = (($check*4)-36);
 						
 						my $stamp  = ($check*4000)-($zstart*1000);
 						my $stamp2 = $stamp+4000;
