@@ -32,7 +32,7 @@ my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
 print "\n=======================\n";
-print   " TELERISING API v0.3.1 \n";
+print   " TELERISING API v0.3.2 \n";
 print   "=======================\n\n";
 
 print "(c) 2019-2020 Jan-Luca Neumann (sunsettrack4)\n";
