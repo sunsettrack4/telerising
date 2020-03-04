@@ -32,7 +32,7 @@ my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
 print "\n=======================\n";
-print   " TELERISING API v0.3.1 \n";
+print   " TELERISING API v0.3.2 \n";
 print   "=======================\n\n";
 
 print "(c) 2019-2020 Jan-Luca Neumann (sunsettrack4)\n";
@@ -96,7 +96,7 @@ sub login_process {
 			my $json;
 			{
 				local $/; #Enable 'slurp' mode
-				open my $fh, "<", "userfile.json" or die "UNABLE TO LOGIN TO WEBSERVICE! (User data can't be found!)\n\n";
+				open my $fh, "<", "userfile.json" or die ERROR "UNABLE TO LOGIN TO WEBSERVICE! (User data can't be found!)\n\n";
 				$json = <$fh>;
 				close $fh;
 			}
@@ -110,7 +110,7 @@ sub login_process {
 			
 			if( not defined $userfile ) {
 				ERROR "ERROR: Unable to parse user data\n\n";
-				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 				print $error_file "ERROR: Unable to parse user data";
 				close $error_file;
 				exit;
@@ -130,14 +130,14 @@ sub login_process {
 			
 			if( not defined $provider ) {
 				ERROR "ERROR: No provider selected\n\n";
-				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 				print $error_file "ERROR: No provider selected";
 				close $error_file;
 				exit;
 			} elsif( $provider ne "wilmaa.com" ) {
 				if( not defined $login_mail or not defined $login_passwd ) {
 					ERROR "ERROR: Unable to retrieve complete login data\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: Unable to retrieve complete login data";
 					close $error_file;
 					exit;
@@ -145,13 +145,13 @@ sub login_process {
 			} elsif( $provider eq "wilmaa.com" ) {
 				if( not defined $login_mail and defined $login_passwd ) {
 					ERROR "ERROR: Unable to retrieve complete login data\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: Unable to retrieve complete login data";
 					close $error_file;
 					exit;
 				} elsif( defined $login_mail and not defined $login_passwd ) {
 					ERROR "ERROR: Unable to retrieve complete login data\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: Unable to retrieve complete login data";
 					close $error_file;
 					exit;
@@ -244,7 +244,7 @@ sub login_process {
 				print "";
 			} else {
 				ERROR "ERROR: Provider is not supported. Please recheck the domain.\n\n";
-				open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+				open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 				print $error_file "ERROR: Provider is not supported. Please recheck the domain.";
 				close $error_file;
 				exit;
@@ -277,7 +277,7 @@ sub login_process {
 				if( $channel_response->is_error ) {
 					ERROR "ERROR: IP lookup: Invalid response\n\n";
 					ERROR "RESPONSE:\n\n" . $channel_response->content . "\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: IP lookup: Invalid response";
 					close $error_file;
 					exit;
@@ -292,7 +292,7 @@ sub login_process {
 				
 				if( not defined $ch_file ) {
 					ERROR "ERROR: Failed to parse JSON file(s) (IP LOOKUP)\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: Failed to parse JSON file(s) (IP LOOKUP)";
 					close $error_file;
 					exit;
@@ -321,7 +321,7 @@ sub login_process {
 					INFO "--- YOUR ACCOUNT TYPE: WILMAA (ANONYMOUS) ---\n\n";
 					INFO "--- COUNTRY: OTHER ---\n\n";
 					INFO "ERROR: No valid service country detected, Wilmaa services can't be used.\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: No valid service country detected, Wilmaa services can't be used.";
 					close $error_file;
 					exit;
@@ -357,7 +357,7 @@ sub login_process {
 						$session_token       =~ s/(.*)(wilmaa=)(.*)(; expires.*)/$3/g;
 					} else {
 						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)\n\n";
-						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)";
 						close $error_file;
 						exit;
@@ -368,7 +368,7 @@ sub login_process {
 
 					if( not defined $main_content) {
 						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)\n\n";
-						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)";
 						close $error_file;
 						exit;
@@ -379,7 +379,7 @@ sub login_process {
 
 					if( not defined $wilmaatree) {
 						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)\n\n";
-						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)";
 						close $error_file;
 						exit;
@@ -392,7 +392,7 @@ sub login_process {
 						$apptoken        =~ s/(.*value=")(.*)(".*)/$2/g;
 					} else {
 						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)\n\n";
-						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)";
 						close $error_file;
 						exit;
@@ -420,7 +420,7 @@ sub login_process {
 					
 					if( not defined $login_user ) {
 						ERROR "LOGIN FAILED! (please re-check login data)\n\n";
-						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "LOGIN FAILED! (please re-check login data)";
 						close $error_file;
 						exit;
@@ -431,7 +431,7 @@ sub login_process {
 					$login_user       =~ s/(.*)(wilmaa_user_id=)(.*)(; expires.*)(wilmaa_onboarding_user_id.*)/$3/g;
 					
 					# CREATE FILE
-					open my $session_file, ">", "session.json" or die "UNABLE TO CREATE SESSION FILE!\n\n";
+					open my $session_file, ">", "session.json" or die ERROR "UNABLE TO CREATE SESSION FILE!\n\n";
 					print $session_file "{\"provider\":\"$provider\",\"tv_mode\":\"$tv_mode\",\"wilmaa_user_id\":\"$login_user\",\"session_token\":\"$session_token\",\"interface\":\"$interface\",\"address\":\"$customip\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"ssl_mode\":\"$ssl_mode\"}";
 					close $session_file;
 					
@@ -441,7 +441,7 @@ sub login_process {
 				}
 				
 				# CREATE FILE
-				open my $session_file, ">", "session.json" or die "UNABLE TO CREATE SESSION FILE!\n\n";
+				open my $session_file, ">", "session.json" or die ERROR "UNABLE TO CREATE SESSION FILE!\n\n";
 				print $session_file "{\"provider\":\"$provider\",\"tv_mode\":\"$tv_mode\",\"interface\":\"$interface\",\"address\":\"$customip\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"ssl_mode\":\"$ssl_mode\"}";
 				close $session_file;
 				
@@ -472,7 +472,7 @@ sub login_process {
 				if( $main_response->is_error ) {
 					ERROR "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
 					ERROR "RESPONSE:\n\n" . $main_response->content . "\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)";
 					close $error_file;
 					exit;
@@ -483,7 +483,7 @@ sub login_process {
 
 				if( not defined $main_content) {
 					ERROR "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)";
 					close $error_file;
 					exit;
@@ -494,7 +494,7 @@ sub login_process {
 
 				if( not defined $zattootree) {
 					ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)";
 					close $error_file;
 					exit;
@@ -507,7 +507,7 @@ sub login_process {
 					$apptoken        =~ s/(.*window.appToken = ')(.*)(';.*)/$2/g;
 				} else {
 					ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve appToken)";
 					close $error_file;
 					exit;
@@ -533,7 +533,7 @@ sub login_process {
 					$session_token       =~ s/(.*)(beaker.session.id=)(.*)(; Path.*)/$3/g;
 				} else {
 					ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve Session ID)";
 					close $error_file;
 					exit;
@@ -542,7 +542,7 @@ sub login_process {
 				if( $session_response->is_error ) {
 					ERROR "LOGIN FAILED! (invalid response)\n\n";
 					ERROR "RESPONSE:\n\n" . $session_response->content . "\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "LOGIN FAILED! (invalid response)";
 					close $error_file;
 					exit;
@@ -570,7 +570,7 @@ sub login_process {
 				if( $login_response->is_error ) {
 					ERROR "LOGIN FAILED! (please re-check login data)\n\n";
 					ERROR "RESPONSE:\n\n" . $login_response->content . "\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "LOGIN FAILED! (please re-check login data)";
 					close $error_file;
 					exit;
@@ -590,7 +590,7 @@ sub login_process {
 
 				if( not defined $analyse_login ) {
 					ERROR "ERROR: Unable to parse user data\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: Unable to parse user data";
 					close $error_file;
 					exit;
@@ -624,7 +624,7 @@ sub login_process {
 				} elsif( $provider eq "zattoo.com" ) {
 					ERROR "--- COUNTRY: OTHER ---\n\n";
 					ERROR "ERROR: No valid service country detected, Zattoo services can't be used.\n\n";
-					open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 					print $error_file "ERROR: No valid service country detected, Zattoo services can't be used.";
 					close $error_file;
 					exit;
@@ -654,7 +654,7 @@ sub login_process {
 						$tv_mode = "pvr";
 					} elsif ( $alias ne "CH" and $product_code eq "FREE" ) {
 						ERROR "ERROR: No Swiss IP address detected, Zattoo services can't be used.\n\n";
-						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "ERROR: No Swiss IP address detected, Zattoo services can't be used.";
 						close $error_file;
 						exit;
@@ -666,7 +666,7 @@ sub login_process {
 					
 					if( $alias ne "DE" and $product_code eq "FREE" ) {
 						ERROR "ERROR: No German IP address detected, Zattoo services can't be used.\n\n";
-						open my $error_file, ">", "error.txt" or die "UNABLE TO CREATE ERROR FILE!\n\n";
+						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "ERROR: No German IP address detected, Zattoo services can't be used.";
 						close $error_file;
 						exit;
@@ -684,7 +684,7 @@ sub login_process {
 				}
 				
 				# CREATE FILE
-				open my $session_file, ">", "session.json" or die "UNABLE TO CREATE SESSION FILE!\n\n";
+				open my $session_file, ">", "session.json" or die ERROR "UNABLE TO CREATE SESSION FILE!\n\n";
 				print $session_file "{\"provider\":\"$provider\",\"session_token\":\"$session_token\",\"powerid\":\"$powerid\",\"tv_mode\":\"$tv_mode\",\"country\":\"$country\",\"interface\":\"$interface\",\"address\":\"$customip\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"pin\":\"$pin\",\"ssl_mode\":\"$ssl_mode\"}";
 				close $session_file;
 				
@@ -731,7 +731,7 @@ my %O = (
 my $json_file;
 {
 	local $/; #Enable 'slurp' mode
-	open my $fh, "<", "session.json" or die "UNABLE TO OPEN SESSION FILE! (please check file existence/permissions)\n\n";
+	open my $fh, "<", "session.json" or die ERROR "UNABLE TO OPEN SESSION FILE! (please check file existence/permissions)\n\n";
 	$json_file = <$fh>;
 	close $fh;
 }
@@ -744,7 +744,7 @@ eval{
 };
 	
 if( not defined $sessiondata ) {
-	print "ERROR: Failed to parse JSON session file.\n\n";
+	ERROR "Failed to parse JSON session file.\n\n";
 	exit;
 }
 		
@@ -782,13 +782,13 @@ if( defined $address ) {
 		if ( $hostipchecker->is_broadcast ) {
 			$hostip = $hostipchecker->address;
 		} else {
-			print "ERROR: Custom interface can't be used (no broadcast type).\n\n";
+			ERROR "Custom interface can't be used (no broadcast type).\n\n";
 			exit;
 		}
 		
 	} else {
 		
-		print "ERROR: Custom interface can't be used (unknown).\n\n";
+		ERROR "Custom interface can't be used (unknown).\n\n";
 		exit;
 	
 	}
@@ -807,7 +807,7 @@ if( defined $address ) {
 	}
 	
 	if( not defined $hostip ) {
-		print "ERROR: Broadcast interface can't be found!\n\n";
+		ERROR "Broadcast interface can't be found!\n\n";
 		exit;
 	}
 }
@@ -820,7 +820,7 @@ my $d = HTTP::Daemon->new(
     Reuse => 1,
 	ReuseAddr => 1,
 	ReusePort => $port,
-) or die "API CANNOT BE STARTED!\nPlease recheck your IP/domain/port configuration.\n\n";
+) or die ERROR "API CANNOT BE STARTED!\nPlease recheck your IP/domain/port configuration.\n\n";
 
 print "API STARTED!\n\n";
 print "Host IP address: $hostip:$port\n\n";
@@ -843,7 +843,7 @@ while (1) {
             my $pid = fork;
 
             if (!defined $pid) { # ERROR
-                die "PREFORK PROCESS FAILED FOR HTTP CHILD $_: $!";
+                die ERROR "PREFORK PROCESS FAILED FOR HTTP CHILD $_: $!";
             }
             if ($pid) { # PARENT
                 $chld{$pid} = 1;
@@ -923,7 +923,7 @@ sub http_child {
 		my $json;
 		{
 			local $/; #Enable 'slurp' mode
-			open my $fh, "<", "session.json" or die "UNABLE TO OPEN SESSION FILE! (please check file existence/permissions)\n\n";
+			open my $fh, "<", "session.json" or die ERROR "UNABLE TO OPEN SESSION FILE! (please check file existence/permissions)\n\n";
 			$json = <$fh>;
 			close $fh;
 		}
