@@ -80,6 +80,7 @@ sudo cpan install IO::Socket::SSL
 sudo cpan install Mozilla::CA
 sudo cpan install Encode
 sudo cpan install IO::Tee
+sudo cpan install Log::Log4perl
 sudo cpan install POSIX
 sudo cpan install utf8
 
@@ -87,13 +88,13 @@ sudo cpan install utf8
 mkdir ~/telerising
 
 # Download the .zip file and extract the files into your folder:
-wget https://github.com/sunsettrack4/telerising/archive/v0.3.1.zip
+wget https://github.com/sunsettrack4/telerising/archive/v0.3.3.zip
 
 # Unzip the file:
-unzip v0.3.1.zip
+unzip v0.3.3.zip
 
 # Move all script files to the created folder
-mv ~/telerising-0.3.1/* ~/telerising/
+mv ~/telerising-0.3.3/* ~/telerising/
 
 # Set system-wide permissions to the folder and its related files
 sudo chmod 0777 ~/telerising
@@ -109,6 +110,8 @@ perl zattoo.pl & disown
 #### Login file to be placed in script folder
 The variables "provider", "login" and "password" are required values, the other ones are optional.
 The "address" value will be prioritized. Otherwise, the "interface" variable will be used.
+The stream quality check can be disabled by using the "ignore_maxrate" value (set to "true").
+The ffmpeg loglevel can be changed by using the "loglevel" value.
 ```
 {
   "provider": "zattoo.com",
@@ -120,7 +123,15 @@ The "address" value will be prioritized. Otherwise, the "interface" variable wil
   "ffmpeg_lib": "/usr/bin/ffmpeg",
   "port": "8080",
   "ssl_mode": "1",
-  "youth_protection_pin": "1234"
+  "youth_protection_pin": "1234",
+  
+  "platform": "hls5",
+  "bw": "5000",
+  "profile": "1",
+  "audio2": "false",
+  "dolby": "false",
+  "ignore_maxrate": "false",
+  "loglevel": "fatal"
 }
 
 ```
@@ -129,6 +140,8 @@ The "address" value will be prioritized. Otherwise, the "interface" variable wil
 # How to use this API (query strings)
 
 ## Examples
+The below mentioned query strings (e.g. platform=hls) can be used to overwrite the default settings mentioned in userfile.json.
+They are optional if default settings are set in userfile.json. Otherwise, the query strings are required values.
 
 #### Get channels.m3u to stream via VLC
 ```
@@ -194,6 +207,7 @@ audio2=true * - use 2nd audio stream (HLS5 only)
 profile=1 * - use 1st Dolby + 2nd Stereo audio stream (HLS5 only)
 profile=2 * - use 1st Dolby + 1st Stereo audio stream (HLS5 only)
 profile=3 * - use 1st Stereo + 2nd Stereo audio stream (HLS5 only)
+profile=4 * - use 1st Stereo + 1st Dolby audio stream (HLS5 only)
 ```
 
 #### Custom server list
