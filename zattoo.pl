@@ -1861,6 +1861,7 @@ sub http_child {
 				
 				# URLs
 				my $channel_url = "http://geo.wilmaa.com/channels/basic/web_hls_de.json";
+				my $config_url  = "https://resources.wilmaa.com/channelsOverview/channelMappings.json";
 				my $fav_url     = "https://www.wilmaa.com/de/my/channels/getsortedchannels";
 				my $rytec_url   = "https://raw.githubusercontent.com/sunsettrack4/config_files/master/wlm_channels.json";
 				
@@ -1886,6 +1887,28 @@ sub http_child {
 					$response->content("API ERROR: Invalid response on channel request");
 					$c->send_response($response);
 					$c->close;
+					exit;
+				}
+				
+				# CHANNEL CONFIG REQUEST
+				my $config_agent = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
+				my $config_request  = HTTP::Request::Common::GET($config_url);
+				my $config_response = $config_agent->request($config_request);
+				
+				if( $config_response->is_error ) {
+					ERROR "CONFIG URL: Invalid response\n";
+					ERROR "RESPONSE:\n\n" . $config_response->content . "\n";
+					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+					print $error_file "ERROR: CONFIG URL: Invalid response";
+					close $error_file;
 					exit;
 				}
 				
@@ -1958,17 +1981,19 @@ sub http_child {
 				
 				# READ JSON
 				my $ch_file;
+				my $conf_file;
 				my $fav_file;
 				my $rytec_file;
 				
 				eval{
 					$ch_file    = decode_json($channel_response->content);
+					$conf_file  = decode_json($config_response->content);
 					$fav_file   = decode_json($fav_response_edited);
 					$rytec_file = decode_json($rytec_response->content);
 				};
 				
 				if( defined $session_token ) {
-					if( not defined $ch_file or not defined $fav_file or not defined $rytec_file ) {
+					if( not defined $ch_file or not defined $fav_file or not defined $rytec_file or not defined $conf_file ) {
 						print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Failed to parse JSON file(s) (CH/FAV LIST)\n\n";
 						
 						my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
@@ -1979,7 +2004,7 @@ sub http_child {
 						exit;
 					}
 				} else {
-					if( not defined $ch_file and not defined $rytec_file ) {
+					if( not defined $ch_file and not defined $rytec_file or not defined $conf_file ) {
 						print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Failed to parse JSON file(s) (CH LIST)\n\n";
 						
 						my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
@@ -2179,7 +2204,7 @@ sub http_child {
 				
 				# UPDATE CHANNEL CONFIG
 				open my $ch_config, ">", "channels.json";
-				print $ch_config $channel_response->content;
+				print $ch_config $config_response->content;
 				close $ch_config;
 				
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Channel list sent to client - params: bandwidth=$quality, platform=$platform\n";
