@@ -892,52 +892,6 @@ sub login_process {
 					$tv_mode = "live";
 				}
 				
-				# URLs
-				my $chconfig_url   = "https://$provider/zapi/v3/cached/$powerid/channels?";
-				
-				# CHANNEL CONFIG REQUEST
-				my $chconfig_agent = LWP::UserAgent->new(
-					ssl_opts => {
-						SSL_verify_mode => $ssl_mode,
-						verify_hostname => $ssl_mode,
-						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
-					},
-					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
-				);
-				
-				$chconfig_agent->cookie_jar($cookie_jar);
-				my $chconfig_request  = HTTP::Request::Common::GET($chconfig_url);
-				my $chconfig_response = $chconfig_agent->request($chconfig_request);
-				
-				if( $chconfig_response->is_error ) {
-					ERROR "CH CONFIG URL: Invalid response\n";
-					ERROR "RESPONSE:\n\n" . $chconfig_response->content . "\n";
-					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
-					print $error_file "ERROR: CH CONFIG URL: Invalid response";
-					close $error_file;
-					exit;
-				}
-				
-				# READ JSON
-				my $chconfig_file;
-				
-				eval{
-					$chconfig_file    = decode_json($chconfig_response->content);
-				};
-				
-				if( not defined $chconfig_file ) {
-					ERROR "Failed to parse JSON file (CH CONFIG)\n";
-					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
-					print $error_file "Failed to parse JSON file (CH CONFIG)";
-					close $error_file;
-					exit;
-				}
-				
-				# SAVE CHANNEL CONFIG
-				open my $ch_config, ">", "channels.json";
-				print $ch_config $chconfig_response->content;
-				close $ch_config;
-				
 				# CREATE SESSION FILE
 				open my $session_file, ">", "session.json" or die ERROR "UNABLE TO CREATE SESSION FILE!\n\n";
 				print $session_file "{\"provider\":\"$provider\",\"session_token\":\"$session_token\",\"powerid\":\"$powerid\",\"tv_mode\":\"$tv_mode\",\"country\":\"$country\",\"interface\":\"$interface\",\"address\":\"$customip\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"pin\":\"$pin\",\"ssl_mode\":\"$ssl_mode\",\"platform\":\"$user_platform\",\"bandwidth\":\"$user_bandwidth\",\"profile\":\"$user_profile\",\"audio2\":\"$user_audio2\",\"dolby\":\"$user_dolby\",\"loglevel\":\"$user_loglevel\",\"ign_max\":\"$user_maxrate\"}";
@@ -1824,11 +1778,6 @@ sub http_child {
 				open my $cachedfile, ">", "channels_m3u:$quality:$platform:cached";
 				print $cachedfile "$ch_m3u";
 				close $cachedfile;
-				
-				# UPDATE CHANNEL CONFIG
-				open my $ch_config, ">", "channels.json";
-				print $ch_config $channel_response->content;
-				close $ch_config;
 				
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Channel list sent to client - params: bandwidth=$quality, platform=$platform\n";
 				
@@ -3175,38 +3124,6 @@ sub http_child {
 			
 			} elsif( defined $channel ) {
 				
-				# CHECK QUALITY CONDITIONS
-				if( $platform eq "hls5" and $user_mx ne "true" ) {
-					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Loading channel configuration\n";
-					my $check;
-					{
-						local $/; #Enable 'slurp' mode
-						open my $fh, '<', "channels.json" or die "ERROR: UNABLE TO LOAD CH CONFIG FILE!\n\n";
-						$check = <$fh>;
-						close $fh;
-					}
-					my $chconfig_main  = decode_json($check);
-					my @chconfig_check = @{ $chconfig_main->{"channels"} };
-					
-					foreach my $channels ( @chconfig_check ) {
-						if( $channels->{"cid"} eq $channel ) {
-							if( $channels->{"qualities"}[0]{"availability"} eq "available" ) {
-								if( $channels->{"qualities"}[0]{"level"} eq "sd" ) {
-									if( $quality =~ /8000|5000|4999|3000/ ) {
-										$quality = "2999";
-									}
-								}
-							} elsif( $channels->{"qualities"}[1]{"availability"} eq "available" ) {
-								if( $channels->{"qualities"}[1]{"level"} eq "sd" ) {
-									if( $quality =~ /8000|5000|4999|3000/ ) {
-										$quality = "2999";
-									}
-								}
-							}
-						}
-					}
-				}
-				
 				# REQUEST PLAYLIST URL
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Loading Live URL\n";
 				my $live_url = "https://$provider/zapi/watch/live/$channel";
@@ -3265,8 +3182,20 @@ sub http_child {
 						exit;
 					}
 					
+					# CHECK QUALITY CONDITION
+					if( $platform eq "hls5" and $user_mx ne "true" ) {
+						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Loading channel configuration\n";
+						my $quality_check = $liveview_file->{'stream'}->{'quality'};
+						
+						if( $quality_check eq "sd" ) {
+							if( $quality =~ /8000|5000|4999|3000/ ) {
+								$quality = "2999";
+							}
+						}
+					}
+					
 					my $liveview_url = $liveview_file->{'stream'}->{'url'};
-				
+					
 					# LOAD PLAYLIST URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Loading M3U8\n";
 					
@@ -3724,38 +3653,6 @@ sub http_child {
 				exit;
 			
 			} elsif( defined $channel ) {
-				
-				# CHECK QUALITY CONDITIONS
-				if( $platform eq "hls5" and $user_mx ne "true" ) {
-					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Loading channel configuration\n";
-					my $check;
-					{
-						local $/; #Enable 'slurp' mode
-						open my $fh, '<', "channels.json" or die "ERROR: UNABLE TO LOAD CH CONFIG FILE!\n\n";
-						$check = <$fh>;
-						close $fh;
-					}
-					my $chconfig_main  = decode_json($check);
-					my @chconfig_check = @{ $chconfig_main->{"channels"} };
-					
-					foreach my $channels ( @chconfig_check ) {
-						if( $channels->{"cid"} eq $channel ) {
-							if( $channels->{"qualities"}[0]{"availability"} eq "available" ) {
-								if( $channels->{"qualities"}[0]{"level"} eq "sd" ) {
-									if( $quality =~ /8000|5000|4999|3000/ ) {
-										$quality = "2999";
-									}
-								}
-							} elsif( $channels->{"qualities"}[1]{"availability"} eq "available" ) {
-								if( $channels->{"qualities"}[1]{"level"} eq "sd" ) {
-									if( $quality =~ /8000|5000|4999|3000/ ) {
-										$quality = "2999";
-									}
-								}
-							}
-						}
-					}
-				}
 			
 				# ADD RECORDING
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Add recording\n";
@@ -3862,6 +3759,18 @@ sub http_child {
 						$c->send_response($response);
 						$c->close;
 						exit;
+					}
+					
+					# CHECK QUALITY CONDITION
+					if( $platform eq "hls5" and $user_mx ne "true" ) {
+						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Loading channel configuration\n";
+						my $quality_check = $recview_file->{'stream'}->{'quality'};
+						
+						if( $quality_check eq "sd" ) {
+							if( $quality =~ /8000|5000|4999|3000/ ) {
+								$quality = "2999";
+							}
+						}
 					}
 					
 					my $rec_url = $recview_file->{'stream'}->{'url'};
