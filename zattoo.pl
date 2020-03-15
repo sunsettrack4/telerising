@@ -31,7 +31,7 @@ use IO::Tee;
 my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
-print "\n =========================                     I             +         \n";
+print "\n =========================                   I             +          \n";
 print " TELERISING API v0.3.3                          I    I         +        \n";
 print " =========================                       I  I       +      +    \n";
 print "                                                  II                    \n";
@@ -137,6 +137,9 @@ sub login_process {
 			my $port         = $userfile->{'port'};
 			my $pin          = $userfile->{'youth_protection_pin'};
 			my $ssl_mode     = $userfile->{'ssl_mode'};
+			my $code         = $userfile->{'code'};
+			# my $ondemand     = $userfile->{'ondemand'};
+			# my $easyepg      = $userfile->{'epg'};
 			my $ssl_verify;
 			
 			# SET DEFAULT VALUES TO REPLACE URL QUERY STRINGS
@@ -252,6 +255,16 @@ sub login_process {
 				$ssl_mode = "1";
 			} elsif( $ssl_mode eq "0" ) {
 				WARN "SSL verification disabled!\n";
+			}
+			
+			if( not defined $code ) {
+				$code = "";
+			} elsif( $code =~ /[\\\/=?\& ]/ ) {
+				ERROR "API access code must not contain special characters!\n\n";
+				open my $error_file, ">", "error.txt" or die ERROR  "API access code must not contain special characters!\n\n";
+				print $error_file "API access code must not contain special characters!";
+				close $error_file;
+				exit;
 			}
 			
 			if( $provider ne "wilmaa.com" ) {
@@ -590,7 +603,7 @@ sub login_process {
 					
 					# CREATE SESSION FILE
 					open my $session_file, ">", "session.json" or die ERROR "UNABLE TO CREATE SESSION FILE!\n\n";
-					print $session_file "{\"provider\":\"$provider\",\"tv_mode\":\"$tv_mode\",\"wilmaa_user_id\":\"$login_user\",\"session_token\":\"$session_token\",\"interface\":\"$interface\",\"address\":\"$customip\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"ssl_mode\":\"$ssl_mode\",\"platform\":\"$user_platform\",\"bandwidth\":\"$user_bandwidth\",\"profile\":\"$user_profile\",\"audio2\":\"$user_audio2\",\"dolby\":\"$user_dolby\",\"loglevel\":\"$user_loglevel\",\"ign_max\":\"$user_maxrate\"}";
+					print $session_file "{\"provider\":\"$provider\",\"tv_mode\":\"$tv_mode\",\"wilmaa_user_id\":\"$login_user\",\"session_token\":\"$session_token\",\"interface\":\"$interface\",\"address\":\"$customip\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"ssl_mode\":\"$ssl_mode\",\"platform\":\"$user_platform\",\"bandwidth\":\"$user_bandwidth\",\"profile\":\"$user_profile\",\"audio2\":\"$user_audio2\",\"dolby\":\"$user_dolby\",\"loglevel\":\"$user_loglevel\",\"ign_max\":\"$user_maxrate\",\"code\":\"$code\"}";
 					close $session_file;
 					
 					sleep 86400;
@@ -647,7 +660,7 @@ sub login_process {
 				
 					# CREATE SESSION FILE
 					open my $session_file, ">", "session.json" or die ERROR "UNABLE TO CREATE SESSION FILE!\n\n";
-					print $session_file "{\"provider\":\"$provider\",\"tv_mode\":\"$tv_mode\",\"interface\":\"$interface\",\"address\":\"$customip\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"ssl_mode\":\"$ssl_mode\",\"platform\":\"$user_platform\",\"bandwidth\":\"$user_bandwidth\",\"profile\":\"$user_profile\",\"audio2\":\"$user_audio2\",\"dolby\":\"$user_dolby\",\"loglevel\":\"$user_loglevel\",\"ign_max\":\"$user_maxrate\"}";
+					print $session_file "{\"provider\":\"$provider\",\"tv_mode\":\"$tv_mode\",\"interface\":\"$interface\",\"address\":\"$customip\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"ssl_mode\":\"$ssl_mode\",\"platform\":\"$user_platform\",\"bandwidth\":\"$user_bandwidth\",\"profile\":\"$user_profile\",\"audio2\":\"$user_audio2\",\"dolby\":\"$user_dolby\",\"loglevel\":\"$user_loglevel\",\"ign_max\":\"$user_maxrate\",\"code\":\"$code\"}";
 					close $session_file;
 					
 					sleep 86400;
@@ -894,7 +907,7 @@ sub login_process {
 				
 				# CREATE SESSION FILE
 				open my $session_file, ">", "session.json" or die ERROR "UNABLE TO CREATE SESSION FILE!\n\n";
-				print $session_file "{\"provider\":\"$provider\",\"session_token\":\"$session_token\",\"powerid\":\"$powerid\",\"tv_mode\":\"$tv_mode\",\"country\":\"$country\",\"interface\":\"$interface\",\"address\":\"$customip\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"pin\":\"$pin\",\"ssl_mode\":\"$ssl_mode\",\"platform\":\"$user_platform\",\"bandwidth\":\"$user_bandwidth\",\"profile\":\"$user_profile\",\"audio2\":\"$user_audio2\",\"dolby\":\"$user_dolby\",\"loglevel\":\"$user_loglevel\",\"ign_max\":\"$user_maxrate\"}";
+				print $session_file "{\"provider\":\"$provider\",\"session_token\":\"$session_token\",\"powerid\":\"$powerid\",\"tv_mode\":\"$tv_mode\",\"country\":\"$country\",\"interface\":\"$interface\",\"address\":\"$customip\",\"server\":\"$zserver\",\"ffmpeg_lib\":\"$ffmpeglib\",\"port\":\"$port\",\"pin\":\"$pin\",\"ssl_mode\":\"$ssl_mode\",\"platform\":\"$user_platform\",\"bandwidth\":\"$user_bandwidth\",\"profile\":\"$user_profile\",\"audio2\":\"$user_audio2\",\"dolby\":\"$user_dolby\",\"loglevel\":\"$user_loglevel\",\"ign_max\":\"$user_maxrate\",\"code\":\"$code\"}";
 				close $session_file;
 				
 				sleep 86400;
@@ -1129,41 +1142,8 @@ sub http_child {
 		# SET UPDATE
 		my $update   = $params->{'update'};
 		
-		# UPDATE SESSION FILE
-		if( defined $update ) {
-			
-			# TRIGGER LOGIN PROCESS
-			print "\n==== UPDATING SESSION MANUALLY... ====\n\n";
-			unlink "session.json";
-			login_process();
-
-			until( -e "session.json" ) {
-				if( -e "error.txt" ) {
-					unlink "error.txt";
-					print "\n==== ERROR ENCOUNTERED DURING UPDATE PROCESS! ====\n\n";
-					
-					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Failed to update session file, please fix the error and try again\n\n";
-					
-					my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
-					$response->header('Content-Type' => 'text'),
-					$response->content("API ERROR: Failed to update session file, please fix the error and try again");
-					$c->send_response($response);
-					$c->close;
-					exit;
-				}
-				sleep 1;
-			}
-			
-			print "==== SESSION UPDATED SUCCESSFULLY! ====\n\n";
-			
-			my $response = HTTP::Response->new( 200, 'OK');
-			$response->header('Content-Type' => 'text'),
-			$response->content("Session file updated successfully!");
-			$c->send_response($response);
-			$c->close;
-			exit;
-			
-		}
+		# SET API ACCESS CODE
+		my $access   = $params->{'code'};
 		
 		# READ SESSION FILE
 		if( not -e "session.json" ) {
@@ -1208,6 +1188,7 @@ sub http_child {
 		my $pin           = $session_data->{"pin"};
 		my $ssl_mode      = $session_data->{"ssl_mode"};
 		my $w_user_id     = $session_data->{"wilmaa_user_id"};
+		my $code          = $session_data->{"code"};
 		
 		# SET USER SETTINGS
 		my $user_bw       = $session_data->{"bandwidth"};
@@ -1297,12 +1278,61 @@ sub http_child {
 			}
 		}
 		
+		if( not defined $access ) {
+			$access = "";
+		}
+		
+		if( not defined $code ) {
+			$code = "";
+			$access = $code;
+		} elsif( defined $code ) {
+			if( $code eq "" ) {
+				$access = $code;
+			}
+		}
+		
+		# UPDATE SESSION FILE
+		if( defined $update and $code eq $access ) {
+			
+			# TRIGGER LOGIN PROCESS
+			print "\n==== UPDATING SESSION MANUALLY... ====\n\n";
+			unlink "session.json";
+			login_process();
+
+			until( -e "session.json" ) {
+				if( -e "error.txt" ) {
+					unlink "error.txt";
+					print "\n==== ERROR ENCOUNTERED DURING UPDATE PROCESS! ====\n\n";
+					
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "ERROR: Failed to update session file, please fix the error and try again\n\n";
+					
+					my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+					$response->header('Content-Type' => 'text'),
+					$response->content("API ERROR: Failed to update session file, please fix the error and try again");
+					$c->send_response($response);
+					$c->close;
+					exit;
+				}
+				sleep 1;
+			}
+			
+			print "==== SESSION UPDATED SUCCESSFULLY! ====\n\n";
+			
+			my $response = HTTP::Response->new( 200, 'OK');
+			$response->header('Content-Type' => 'text'),
+			$response->content("Session file updated successfully!");
+			$c->send_response($response);
+			$c->close;
+			exit;
+			
+		}
+		
 		
 		#
 		# RETRIEVE FILES
 		#
 		
-		if( defined $filename and defined $quality and defined $platform ) {
+		if( defined $filename and defined $quality and defined $platform and $code eq $access ) {
 			
 			#
 			# ZATTOO CHANNEL LIST
@@ -2281,6 +2311,7 @@ sub http_child {
 				
 				# CREATE RECORDING M3U
 				my $rec_m3u   = "#EXTM3U\n";
+				my $group_txt = "Recordings";
 				
 				foreach my $rec_data ( @rec_data ) {
 					my $name         = $rec_data->{'title'};
@@ -2306,7 +2337,8 @@ sub http_child {
 					my $rec_loc_sec = strftime("%s", localtime($record_time->epoch) );
 					
 					if( $rec_loc_sec > strftime("%s", localtime() ) ) {
-						$name = "[PLANNED] " . $name;
+						$name      = "[PLANNED] " . $name;
+						$group_txt = "Timer";
 					}
 					
 					foreach my $ch_groups ( @ch_groups ) {
@@ -2318,9 +2350,9 @@ sub http_child {
 							
 							if( $cid eq $chid ) {
 								if( defined $episode ) {
-									$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " (" . $episode . ") | " . $cname . "\n";
+									$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " (" . $episode . ") | " . $cname . "\n";
 								} else {
-									$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
+									$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
 								}
 								
 								# BASE URL
@@ -2392,11 +2424,6 @@ sub http_child {
 				open my $cachedfile, ">", "recordings_m3u:$quality:$platform:cached";
 				print $cachedfile "$rec_m3u";
 				close $cachedfile;
-				
-				# UPDATE REC CONFIG
-				open my $rec_config, ">", "recordings.json";
-				print $rec_config $playlist_response->content;
-				close $rec_config;
 				
 				my $response = HTTP::Response->new( 200, 'OK');
 				$response->header('Content-Type' => 'text', 'Charset' => 'utf8'),
@@ -2523,6 +2550,7 @@ sub http_child {
 				
 				# CREATE RECORDING M3U
 				my $rec_m3u   = "#EXTM3U\n";
+				my $group_txt = "Recordings";
 				
 				foreach my $rec_data ( @rec_data ) {
 					my $name         = $rec_data->{'epg_title'};
@@ -2545,7 +2573,8 @@ sub http_child {
 					my $record_local = strftime "%d.%m.%Y %H:%M:%S", localtime($record_start);
 					
 					if( $status eq "PLANNED" ) {
-						$name = "[PLANNED] " . $name;
+						$name      = "[PLANNED] " . $name;
+						$group_txt = "Timer";
 					}
 					
 					my $dd_location;
@@ -2558,12 +2587,12 @@ sub http_child {
 					
 					if( defined $episode ) {
 						if( $episode ne "" ) {
-							$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " (" . $episode . ") | " . $cname . "\n";
+							$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " (" . $episode . ") | " . $cname . "\n";
 						} else {
-							$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
+							$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
 						}
 					} else {
-						$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"Recordings\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
+						$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
 					}
 					
 					# BASE URL
@@ -2666,7 +2695,7 @@ sub http_child {
 		# PROVIDE SEGMENTS M3U8
 		#
 		
-		} elsif( defined $zch and defined $zstart and defined $zend and defined $zkeyval and defined $quality and defined $platform ) {
+		} elsif( defined $zch and defined $zstart and defined $zend and defined $zkeyval and defined $quality and defined $platform and $code eq $access ) {
 			
 			if( $platform eq "hls" ) {
 				
@@ -3078,7 +3107,7 @@ sub http_child {
 		# PROVIDE CHANNEL M3U8
 		#
 		
-		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "live" and $provider ne "wilmaa.com" ) {
+		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "live" and $provider ne "wilmaa.com" and $code eq $access ) {
 			
 			#
 			# ZATTOO CONDITION: HOME
@@ -3544,7 +3573,7 @@ sub http_child {
 			
 			}
 		
-		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "pvr" and $provider ne "wilmaa.com" ) {
+		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "pvr" and $provider ne "wilmaa.com" and $code eq $access ) {
 			
 			#
 			# ZATTOO CONDITION: WORLDWIDE
@@ -4198,7 +4227,7 @@ sub http_child {
 			
 			}
 			
-		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "live" and $provider eq "wilmaa.com" and $tv_mode eq "live" ) {
+		} elsif( defined $channel and defined $quality and defined $platform and $tv_mode eq "live" and $provider eq "wilmaa.com" and $tv_mode eq "live" and $code eq $access ) {
 			
 			#
 			# WILMAA CONDITION: HOME
@@ -4602,7 +4631,7 @@ sub http_child {
 		# PROVIDE ZATTOO RECORDING M3U8
 		#
 		
-		} elsif( defined $rec_ch and defined $quality and defined $platform and $provider ne "wilmaa.com" ) {
+		} elsif( defined $rec_ch and defined $quality and defined $platform and $provider ne "wilmaa.com" and $code eq $access ) {
 			
 			# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
 			if( open my $file, "<", "$rec_ch:$quality:$platform:cached" ) {
@@ -4618,30 +4647,6 @@ sub http_child {
 			}
 			
 			my $req_quality = $quality;
-			
-			# CHECK QUALITY CONDITIONS
-			if( $platform eq "hls5" and $user_mx ne "true" ) {
-				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Loading rec. configuration\n";
-				my $check;
-				{
-					local $/; #Enable 'slurp' mode
-					open my $fh, '<', "recordings.json" or die "ERROR: UNABLE TO LOAD REC CONFIG FILE!\n\n";
-					$check = <$fh>;
-					close $fh;
-				}
-				my $chconfig_main  = decode_json($check);
-				my @chconfig_check = @{ $chconfig_main->{"recordings"} };
-				
-				foreach my $channels ( @chconfig_check ) {
-					if( $channels->{"id"} eq $rec_ch ) {
-						if( $channels->{"level"} eq "sd" ) {
-							if( $quality =~ /8000|5000|4999|3000/ ) {
-								$quality = "2999";
-							}
-						}
-					}
-				}
-			}
 			
 			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Loading PVR URL\n";
 			my $recchview_url = "https://$provider/zapi/watch/recording/$rec_ch";
@@ -4718,6 +4723,18 @@ sub http_child {
 					$c->send_response($response);
 					$c->close;
 					exit;
+				}
+				
+				# CHECK QUALITY CONDITION
+				if( $platform eq "hls5" and $user_mx ne "true" ) {
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $channel | $quality | $platform - Loading rec. configuration\n";
+
+					my $quality_check = $recchview_file->{'stream'}->{'quality'};
+					if( $quality_check eq "sd" ) {
+						if( $quality =~ /8000|5000|4999|3000/ ) {
+							$quality = "2999";
+						}
+					}
 				}
 				
 				my $recch_url = $recchview_file->{'stream'}->{'url'};
@@ -5067,7 +5084,7 @@ sub http_child {
 		# PROVIDE WILMAA RECORDING M3U8
 		#
 		
-		} elsif( defined $rec_ch and defined $quality and defined $platform and $provider eq "wilmaa.com" and defined $w_user_id ) {
+		} elsif( defined $rec_ch and defined $quality and defined $platform and $provider eq "wilmaa.com" and defined $w_user_id and $code eq $access ) {
 			
 			# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
 			if( open my $file, "<", "$rec_ch:$quality:$platform:cached" ) {
@@ -5516,7 +5533,7 @@ sub http_child {
 		# REMOVE ZATTOO RECORDING
 		#
 		
-		} elsif( defined $rec_ch and $provider ne "wilmaa.com" and defined $remove) {
+		} elsif( defined $rec_ch and $provider ne "wilmaa.com" and defined $remove and $code eq $access) {
 			
 			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Removing record\n";
 				
@@ -5567,7 +5584,7 @@ sub http_child {
 		# REMOVE WILMAA RECORDING
 		#
 		
-		} elsif( defined $rec_ch and $provider eq "wilmaa.com" and defined $w_user_id and defined $remove) {
+		} elsif( defined $rec_ch and $provider eq "wilmaa.com" and defined $w_user_id and defined $remove and $code eq $access) {
 			
 			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "Removing record\n";
 				
