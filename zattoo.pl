@@ -2357,6 +2357,8 @@ sub http_child {
 					if( $rec_loc_sec > strftime("%s", localtime() ) ) {
 						$name      = "[PLANNED] " . $name;
 						$group_txt = "Timer";
+					} else {
+						$group_txt = "Recordings";
 					}
 					
 					foreach my $ch_groups ( @ch_groups ) {
@@ -2593,6 +2595,8 @@ sub http_child {
 					if( $status eq "PLANNED" ) {
 						$name      = "[PLANNED] " . $name;
 						$group_txt = "Timer";
+					} else {
+						$group_txt = "Recordings";
 					}
 					
 					my $dd_location;
