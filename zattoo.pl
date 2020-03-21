@@ -896,6 +896,12 @@ sub login_process {
 						if( $alias =~ /BE|FR|IT|LU|NL|DK|IE|UK|GR|PT|ES|FI|AT|SE|EE|LT|LV|MT|PL|SK|SI|CZ|HU|CY|BG|RO|HR|GP|GY|MQ|RE|YT|AN/ ) {
 							INFO "No German IP address detected, Zattoo services can be used within the EU.\n";
 							$tv_mode = "live";
+						} else {
+							ERROR "No supported IP address (EU) detected, Zattoo services can't be used.\n\n";
+							open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+							print $error_file "ERROR: No supported IP address (EU) detected, Zattoo services can't be used.";
+							close $error_file;
+							exit;
 						}
 					} else {
 						$tv_mode = "live";
@@ -1217,16 +1223,28 @@ sub http_child {
 		} else {
 			if( $quality eq "8000" ) {
 				$quality = "8000";
+			} elsif( $quality eq "7800" and $platform eq "hls5" ) {
+				$quality = "7800";
 			} elsif( $quality eq "5000" ) {
 				$quality = "5000";
+			} elsif( $quality eq "4800" and $platform eq "hls5" ) {
+				$quality = "4800";
 			} elsif( $quality eq "4999" ) {
 				$quality = "4999";
+			} elsif( $quality eq "4799" and $platform eq "hls5" ) {
+				$quality = "4799";
 			} elsif( $quality eq "3000" ) {
 				$quality = "3000";
+			} elsif( $quality eq "2800" and $platform eq "hls5" ) {
+				$quality = "2800";
 			} elsif( $quality eq "2999" ) {
 				$quality = "2999";
+			} elsif( $quality eq "2799" and $platform eq "hls5" ) {
+				$quality = "2799";
 			} elsif( $quality eq "1500" ) {
 				$quality = "1500";
+			} elsif( $quality eq "1300" and $platform eq "hls5" ) {
+				$quality = "1300";
 			} else {
 				$quality = $user_bw;
 			}
