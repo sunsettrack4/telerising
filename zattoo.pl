@@ -5418,7 +5418,7 @@ sub http_child {
 		# PROVIDE ZATTOO RECORDING M3U8
 		#
 		
-		} elsif( defined $rec_ch and defined $quality and defined $platform and $provider ne "wilmaa.com" and $code eq $access ) {
+		} elsif( defined $rec_ch and defined $quality and defined $platform and $provider ne "wilmaa.com" and $code eq $access  and not defined $remove ) {
 			
 			# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
 			if( open my $file, "<", "$rec_ch:$quality:$platform:cached" ) {
@@ -5502,7 +5502,7 @@ sub http_child {
 				};
 				
 				if( not defined $recchview_file ) {
-					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $channel | $quality | $platform - ERROR: Failed to parse JSON file (REC)\n\n";
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - ERROR: Failed to parse JSON file (REC)\n\n";
 							
 					my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
 					$response->header('Content-Type' => 'text'),
@@ -5514,7 +5514,7 @@ sub http_child {
 				
 				# CHECK QUALITY CONDITION
 				if( $platform eq "hls5" and $user_mx ne "true" ) {
-					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $channel | $quality | $platform - Loading rec. configuration\n";
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Loading rec. configuration\n";
 
 					my $quality_check = $recchview_file->{'stream'}->{'quality'};
 					if( $quality_check eq "sd" ) {
@@ -5871,7 +5871,7 @@ sub http_child {
 		# PROVIDE WILMAA RECORDING M3U8
 		#
 		
-		} elsif( defined $rec_ch and defined $quality and defined $platform and $provider eq "wilmaa.com" and defined $w_user_id and $code eq $access ) {
+		} elsif( defined $rec_ch and defined $quality and defined $platform and $provider eq "wilmaa.com" and defined $w_user_id and $code eq $access and not defined $remove ) {
 			
 			# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
 			if( open my $file, "<", "$rec_ch:$quality:$platform:cached" ) {
@@ -6017,7 +6017,7 @@ sub http_child {
 				};
 				
 				if( not defined $recchview_file ) {
-					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $channel | $quality | $platform - ERROR: Failed to parse JSON file (REC)\n\n";
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - ERROR: Failed to parse JSON file (REC)\n\n";
 							
 					my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
 					$response->header('Content-Type' => 'text'),
