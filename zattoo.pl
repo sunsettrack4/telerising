@@ -32,7 +32,7 @@ my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
 print "\n =========================                     I             +        \n";
-print " TELERISING API v0.3.4 #DomainHack              I    I         +        \n";
+print " TELERISING API v0.3.4                          I    I         +        \n";
 print " =========================                       I  I       +      +    \n";
 print "                                                  II                    \n";
 print "ZZZZZZZZZ       AA     TTTTTTTTTT TTTTTTTTTT    888888        888888    \n";
@@ -275,7 +275,7 @@ sub login_process {
 				print $error_file "API access code must not contain special characters!";
 				close $error_file;
 				exit;
-			}else {
+			} elsif( $code ne '') {
 				INFO "Server Protection Code enabled!\n"
 			}
 			
