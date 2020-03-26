@@ -1048,8 +1048,8 @@ sub login_process {
 									my $teaser_image = $teasers->{"image_token"};
 									my $teaser_type  = $teasers->{"teasable_type"};
 									
-									if( $teaser_type eq "Avod::Video" ) {
-									
+									if( $teaser_type =~ /Avod::Video|Vod::Movie/ ) {
+										
 										if( defined $teaser_text ) {
 											if( $teaser_text eq "" ) {
 												undef $teaser_text;
@@ -1069,10 +1069,15 @@ sub login_process {
 											$vod_m3u = $vod_m3u . "#EXTINF:0001 tvg-id=\"" . $teaser_code . "\" group-title=\"" . $header_name . "\" tvg-logo=\"https://images.zattic.com/cms/" . $teaser_image . "/format_320x180.jpg\", " . $teaser_title . "\n";
 										}
 										
-										$vod_m3u = $vod_m3u . "VOD_ID=$teaser_code\n";
-									
+										if( $teaser_type eq "Avod::Video" ) {
+											$vod_m3u = $vod_m3u . "VOD_ID=$teaser_code\n";
+										} elsif( $teaser_type eq "Vod::Movie" ) {
+											my $movie_token = $teasers->{"teasable"}{"terms_catalog"}[0]{"terms"}[0]{"token"};
+											$vod_m3u = $vod_m3u . "MOVIE_ID=$teaser_code MOVIE_TOKEN=$movie_token\n";
+										}
+										
 									}
-																		
+									
 								}
 								
 								$counter = $counter + 30;
@@ -1336,7 +1341,9 @@ sub http_child {
 		my $multi    = $params->{'profile'};
 		
 		# SET ONDEMAND ID
-		my $vod      = $params->{'vod'};
+		my $vod       = $params->{'vod'};
+		my $movie_vod = $params->{'vod_movie'};
+		my $token     = $params->{'token'};
 		
 		# SET UPDATE
 		my $update   = $params->{'update'};
@@ -2102,8 +2109,10 @@ sub http_child {
 					# BASIC SEARCH
 					if( $ssldomain eq "false" ) {
 						$vod_file =~ s/(VOD_ID=)(.*)/http:\/\/$hostip:$port\/index.m3u?vod=$2/g;
+						$vod_file =~ s/(MOVIE_ID=)(.*) (MOVIE_TOKEN=)(.*)/http:\/\/$hostip:$port\/index.m3u?vod_movie=$2\&token=$4/g;
 					} else {
 						$vod_file =~ s/(VOD_ID=)(.*)/https:\/\/$ssldomain\/index.m3u?vod=$2/g;
+						$vod_file =~ s/(MOVIE_ID=)(.*) (MOVIE_TOKEN=)(.*)/https:\/\/$ssldomain\/index.m3u?vod_movie=$2\&token=$4/g;
 					}
 					
 					# IF QUERY STRING FOR PLATFORM IS SET
@@ -3998,7 +4007,7 @@ sub http_child {
 		} elsif( defined $vod and defined $quality and defined $platform and $tv_mode eq "live" and $provider eq "zattoo.com" and $code eq $access ) {
 			
 			#
-			# ZATTOO CONDITION: ONDEMAND
+			# ZATTOO CONDITION: ONDEMAND (VIDEO)
 			#
 			
 			# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
@@ -4097,18 +4106,6 @@ sub http_child {
 						$c->send_response($response);
 						$c->close;
 						exit;
-					}
-					
-					# CHECK QUALITY CONDITION
-					if( $platform eq "hls5" and $user_mx ne "true" ) {
-						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "VOD $vod | $quality | $platform - Loading channel configuration\n";
-						my $quality_check = $vodview_file->{'stream'}->{'quality'};
-						
-						if( $quality_check eq "sd" ) {
-							if( $quality =~ /8000|5000|4999|3000/ ) {
-								$quality = "2999";
-							}
-						}
 					}
 					
 					my $vodstream_url = $vodview_file->{'stream'}->{'cast_url'};
@@ -4454,6 +4451,461 @@ sub http_child {
 						# REMOVE CACHED PLAYLIST
 						sleep 1;
 						unlink "$vod:$req_quality:$platform:cached";
+						exit;
+						
+					}
+				
+				}
+			
+			}
+		
+		} elsif( defined $movie_vod and defined $token and defined $quality and defined $platform and $tv_mode eq "live" and $provider eq "zattoo.com" and $code eq $access ) {
+			
+			#
+			# ZATTOO CONDITION: ONDEMAND (MOVIE)
+			#
+			
+			# CHECK IF PLAYLIST HAS BEEN ALREADY SENT
+			if( open my $file, "<", "$movie_vod:$quality:$platform:cached" ) {
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'text/html'),
+				$c->send_file_response("$movie_vod:$quality:$platform:cached");
+				$c->close;
+				close $file;
+				unlink "$movie_vod:$quality:$platform:cached";
+					
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $quality | $platform - Playlist resent to client\n";
+				exit;
+			}
+			
+			my $req_quality = $quality;
+			
+			# CHECK CONDITIONS
+			if( $platform ne "hls" and  $platform ne "hls5" ) {
+				
+				# DO NOT PROCESS: WRONG PLATFORM
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $quality | $platform - Invalid platform\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid platform");
+				$c->send_response($response);
+				$c->close;
+				exit;
+			
+			} elsif( $quality ne "8000" and $quality ne "4999" and $quality ne "5000" and $quality ne "3000" and $quality ne "2999" and $quality ne "1500" ) {
+				
+				# DO NOT PROCESS: WRONG QUALITY
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $quality | $platform - Invalid bandwidth\n";
+				my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+				$response->header('Content-Type' => 'text/html'),
+				$response->content("API ERROR: Invalid bandwidth");
+				$c->send_response($response);
+				$c->close;
+				exit;
+			
+			} elsif( defined $movie_vod ) {
+				
+				# REQUEST PLAYLIST URL
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $quality | $platform - Loading Live URL\n";
+				my $vod_playback_url = "https://$provider/zapi/watch/vod/video";
+				
+				my $vod_playback_agent = LWP::UserAgent->new(
+					ssl_opts => {
+						SSL_verify_mode => $ssl_mode,
+						verify_hostname => $ssl_mode,
+						SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+					},
+					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+				);
+				
+				my $cookie_jar    = HTTP::Cookies->new;
+				$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
+				$vod_playback_agent->cookie_jar($cookie_jar);
+				
+				my $vod_playback_request;
+				
+				if( $pin eq "NONE" ) {
+					$vod_playback_request  = HTTP::Request::Common::POST($vod_playback_url, [ 'term_token' => $token, 'teasable_id' => $movie_vod, 'teasable_type' => 'Vod::Movie', 'stream_type' => $platform, 'https_watch_urls' => 'True', 'enable_eac3' => 'true', 'timeshift' => '10800', 'cast_stream_type' => $platform ]);
+				} else {
+					$vod_playback_request  = HTTP::Request::Common::POST($vod_playback_url, [ 'term_token' => $token, 'teasable_id' => $movie_vod, 'teasable_type' => 'Vod::Movie', 'stream_type' => $platform, 'https_watch_urls' => 'True', 'enable_eac3' => 'true', 'timeshift' => '10800', 'youth_protection_pin' => $pin, 'cast_stream_type' => $platform ]);
+				}
+				
+				my $vod_playback_response = $vod_playback_agent->request($vod_playback_request);
+				
+				if( $vod_playback_response->is_error ) {
+					
+					# DO NOT PROCESS: WRONG CHANNEL ID
+					print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $quality | $platform - Invalid Channel ID\n";
+					print "RESPONSE:\n\n" . $vod_playback_response->content . "\n\n";
+					my $response = HTTP::Response->new( 400, 'BAD REQUEST');
+					$response->header('Content-Type' => 'text/html'),
+					$response->content("API ERROR: Invalid Channel ID");
+					$c->send_response($response);
+					$c->close;
+					exit;
+					
+				} else {
+					
+					my $vodview_file;
+					
+					eval{
+						$vodview_file = decode_json( $vod_playback_response->content );
+					};
+					
+					if( not defined $vodview_file ) {
+						print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $quality | $platform - ERROR: Failed to parse JSON file (VOD)\n\n";
+								
+						my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+						$response->header('Content-Type' => 'text'),
+						$response->content("API ERROR: Failed to parse JSON file (VOD)");
+						$c->send_response($response);
+						$c->close;
+						exit;
+					}
+					
+					my $vodstream_url = $vodview_file->{'stream'}->{'cast_url'};
+					
+					# LOAD PLAYLIST URL
+					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $quality | $platform - Loading M3U8\n";
+					
+					my $vodstream_agent  = LWP::UserAgent->new(
+						ssl_opts => {
+							SSL_verify_mode => $ssl_mode,
+							verify_hostname => $ssl_mode,
+							SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+						},
+						agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+					);
+					
+					my $vodstream_request  = HTTP::Request::Common::GET($vodstream_url);
+					my $vodstream_response = $vodstream_agent->request($vodstream_request);
+					
+					if( $vodstream_response->is_error ) {
+						print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $quality | $platform - ERROR: Failed to load M3U8\n\n";
+						print "RESPONSE:\n\n" . $vodstream_response->content . "\n\n";
+						my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+						$response->header('Content-Type' => 'text/html'),
+						$response->content("API ERROR: Failed to load M3U8");
+						$c->send_response($response);
+						$c->close;
+						exit;
+					}
+					
+					my $link  = $vodstream_response->content;
+					my $link2 = $vodstream_response->content;
+					my $uri   = $vodstream_response->base;
+					
+					$uri     =~ s/(.*)(\/.*.m3u8.*)/$1/g;
+					
+					# EDIT PLAYLIST URL
+					if( $platform eq "hls" ) {
+						
+						#
+						# HLS
+						#
+						
+						# SET FINAL QUALITY
+						my $final_quality;
+						
+						if( $link =~ m/BANDWIDTH=8000000/ and $quality eq "8000" ) {
+							$final_quality = "8000";
+						} elsif( $link =~ m/BANDWIDTH=5000000/ and $quality eq "8000" ) {
+							$final_quality = "5000";
+						} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "8000" ) {
+							$final_quality = "2999";
+						} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "8000" ) {
+							$final_quality = "1500";
+						} elsif( $link =~ m/BANDWIDTH=4999000/ and $quality eq "4999" ) {
+							$final_quality = "4999";
+						} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "4999" ) {
+							$final_quality = "2999";
+						} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "4999" ) {
+							$final_quality = "1500";
+						} elsif( $link =~ m/BANDWIDTH=5000000/ and $quality eq "5000" ) {
+							$final_quality = "5000";
+						} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "5000" ) {
+							$final_quality = "2999";
+						} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "5000" ) {
+							$final_quality = "1500";
+						} elsif( $link =~ m/BANDWIDTH=3000000/ and $quality eq "3000" ) {
+							$final_quality = "3000";
+						} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "3000" ) {
+							$final_quality = "2999";
+						} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "3000" ) {
+							$final_quality = "1500";
+						} elsif( $link =~ m/BANDWIDTH=3000000/ and $quality eq "2999" ) {
+							$final_quality = "3000";
+						} elsif( $link =~ m/BANDWIDTH=2999000/ and $quality eq "2999" ) {
+							$final_quality = "2999";
+						} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "2999" ) {
+							$final_quality = "1500";
+						} elsif( $link =~ m/BANDWIDTH=1500000/ and $quality eq "1500" ) {
+							$final_quality = "1500";
+						}
+						
+						# EDIT PLAYLIST
+						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $final_quality | $platform - Editing M3U8\n";
+
+						$link        =~ /(.*\/$final_quality.*)/m;
+						my $link_url = $uri . "/" . $1; 
+						
+						$link_url =~ s/http:\/\/.*zahs.tv/http:\/\/$server-hls-vod.zahs.tv/g;
+						$link_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls-vod.zahs.tv/g;
+						
+						my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" . $final_quality . "000\n" . $link_url;
+						
+						# CACHE PLAYLIST
+						open my $cachedfile, ">", "$movie_vod:$quality:$platform:cached";
+						print $cachedfile "$m3u8";
+						close $cachedfile;
+						
+						my $response = HTTP::Response->new( 200, 'OK');
+						$response->header('Content-Type' => 'text/html'),
+						$response->content($m3u8);
+						$c->send_response($response);
+						$c->close;
+						
+						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $final_quality | $platform - Playlist sent to client\n";
+						
+						# REMOVE CACHED PLAYLIST
+						sleep 1;
+						unlink "$movie_vod:$quality:$platform:cached";
+						exit;
+					
+					} elsif( $platform eq "hls5" ) {
+						
+						#
+						# HLS5
+						#
+						
+						# SET FINAL VIDEO PARAMS
+						my $final_quality_video;
+						my $final_bandwidth;
+						my $final_resolution;
+						my $final_framerate;
+						
+						if( $quality eq "8000" ) {
+							$final_quality_video = "7800";
+							$final_bandwidth  = "8000000";
+							$final_resolution = "1920x1080";
+							$final_framerate  = "50";
+						} elsif( $quality eq "4999" ) {
+							$final_quality_video = "4799";
+							$final_bandwidth  = "4999000";
+							$final_resolution = "1920x1080";
+							$final_framerate  = "25";
+						} elsif( $quality eq "5000" ) {
+							$final_quality_video = "4800";
+							$final_bandwidth  = "5000000";
+							$final_resolution = "1280x720";
+							$final_framerate  = "50";
+						} elsif( $quality eq "3000" ) {
+							$final_quality_video = "2800";
+							$final_bandwidth  = "3000000";
+							$final_resolution = "1280x720";
+							$final_framerate  = "25";
+						} elsif( $quality eq "2999" ) {
+							$final_quality_video = "2799";
+							$final_bandwidth  = "2999000";
+							$final_resolution = "1024x576";
+							$final_framerate  = "50";
+						} elsif( $quality eq "1500" ) {
+							$final_quality_video = "1300";
+							$final_bandwidth  = "1500000";
+							$final_resolution = "768x432";
+							$final_framerate  = "25";
+						}
+						
+						# SET FINAL AUDIO CODEC
+						my $final_quality_audio;
+						my $final_codec;
+						my $second_final_quality_audio;
+						
+						# USER WANTS 2 AUDIO STREAMS
+						if( defined $multi ) {
+							# PROFILE 1: DOLBY 1 + STEREO 2
+							if( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_2/ and $multi eq "1" ) {
+								$final_quality_audio = "t_track_audio_bw_256_num_1";
+								$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_2";
+							# TRY TO USE PROFILE 2 WHEN SECOND STEREO STREAM DOES NOT EXIST: DOLBY 1 + STEREO 1
+							} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_0/ and $multi eq "1" ) {
+								$final_quality_audio = "t_track_audio_bw_256_num_1";
+								$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+							# PROFILE 2: DOLBY 1 + STEREO 1
+							} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_0/ and $multi eq "2" ) {
+								$final_quality_audio = "t_track_audio_bw_256_num_1";
+								$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+							# PROFILE 3: STEREO 1 + STEREO 2 (DOLBY SUPPORTED)
+							} elsif( $link =~ m/t_track_audio_bw_128_num_0/ and $link =~ m/t_track_audio_bw_128_num_2/ and $multi eq "3" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_2";
+							# PROFILE 3: STEREO 1 + STEREO 2 (NO DOLBY)
+							} elsif( $link =~ m/t_track_audio_bw_128_num_0/ and $link =~ m/t_track_audio_bw_128_num_1/ and $multi eq "3" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_1";
+							# PROFILE 4: STEREO 1 + DOLBY 1
+							} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $link =~ m/t_track_audio_bw_128_num_0/ and $multi eq "4" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,ec-3,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_256_num_1";
+							# SELECTED DOLBY PROFILE IS NOT SUPPORTED: TRY TO USE PROFILE 3
+							} elsif( $link =~ m/t_track_audio_bw_128_num_0/ and $link =~ m/t_track_audio_bw_128_num_1/ ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_1";
+								$multi = "3";
+							# SELECTED PROFILE IS NOT SUPPORTED + PROFILE 3 IS NOT SUPPORTED: STEREO 1 DUPLICATE
+							} else {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+								$second_final_quality_audio = "t_track_audio_bw_128_num_0";
+								$multi = "3";
+							}
+						# USER WANTS 2ND DOLBY AUDIO STREAM
+						} elsif( defined $dolby and defined $audio2 ) {
+							# AUDIO 2, DOLBY SUPPORTED
+							if( $link =~ m/t_track_audio_bw_256_num_3/ and $audio2 eq "true" and $dolby eq "true" ) {
+								$final_quality_audio = "t_track_audio_bw_256_num_3";
+								$final_codec = "avc1.4d4020,ec-3";
+							# AUDIO 2, DOLBY SUPPORTED FOR AUDIO 1 ONLY
+							} elsif( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" and $dolby eq "true" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_2";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+							# AUDIO 2, NO DOLBY SUPPORT FOR AUDIO 1
+							} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" and $dolby eq "true" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_1";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+							# AUDIO 2 UNAVAILABLE, DOLBY SUPPORTED
+							} elsif( $link =~ m/t_track_audio_bw_256_num_1/ and $audio2 eq "true" and $dolby eq "true" ) {
+								$final_quality_audio = "t_track_audio_bw_256_num_1";
+								$final_codec = "avc1.4d4020,ec-3";
+							# AUDIO 2 UNAVAILABLE, NO DOLBY SUPPORT
+							} else {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+							}
+						# USER WANTS 1ST DOLBY AUDIO STREAM
+						} elsif( defined $dolby ) {
+							# AUDIO 1, DOLBY SUPPORTED
+							if( $link =~ m/t_track_audio_bw_256_num_1/ and $dolby eq "true" ) {
+								$final_quality_audio = "t_track_audio_bw_256_num_1";
+								$final_codec = "avc1.4d4020,ec-3";
+							# AUDIO 1, NO DOLBY SUPPORT
+							} else {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+							}
+						# USER WANTS 2ND STEREO AUDIO STREAM
+						} elsif( defined $audio2 ) {
+							# AUDIO 2 AVAILABLE, DOLBY SUPPORTED FOR AUDIO 1
+							if( $link =~ m/t_track_audio_bw_128_num_2/ and $audio2 eq "true" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_2";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+							# AUDIO 2 AVAILABLE, NO DOLBY SUPPORT FOR AUDIO 1
+							} elsif( $link =~ m/t_track_audio_bw_128_num_1/ and $audio2 eq "true" ) {
+								$final_quality_audio = "t_track_audio_bw_128_num_1";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+							# AUDIO 2 UNAVAILABLE
+							} else {
+								$final_quality_audio = "t_track_audio_bw_128_num_0";
+								$final_codec = "avc1.4d4020,mp4a.40.2";
+							}
+						# USER WANTS 1ST STEREO AUDIO STREAM
+						} else {
+							$final_quality_audio = "t_track_audio_bw_128_num_0";
+							$final_codec = "avc1.4d4020,mp4a.40.2";
+						}
+						
+						# EDIT PLAYLIST
+						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $quality | $platform - Editing M3U8\n";
+						$link        =~ /(.*)(NAME=")(.*)(",DEFAULT=.*)($final_quality_audio.*?z32=)(.*)"/m;
+						my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $6;
+						my $link_audio_url = $uri . "/" . $5 . $6;
+						my $language = $3;
+						
+						if( $language eq "Deutsch" ) {
+							$language = "deu";
+						} elsif( $language eq "English" ) {
+							$language = "eng";
+						} elsif( $language eq "Français" ) {
+							$language = "fra";
+						} elsif( $language eq "Italiano" ) {
+							$language = "ita";
+						} elsif( $language eq "Español") {
+							$language = "spa";
+						} elsif( $language eq "Português" ) {
+							$language = "por";
+						} elsif( $language eq "Türkçe" ) {
+							$language = "tur";
+						} else {
+							$language = "mis";
+						}
+						
+						my $second_link_audio_url;
+						my $second_language;
+						if( defined $multi and defined $second_final_quality_audio ) {
+							$link        =~ /(.*)(NAME=")(.*)(",DEFAULT=.*)($second_final_quality_audio.*?z32=)(.*)"/m;
+							$second_link_audio_url = $uri . "/" . $5 . $6;
+							$second_language       = $3;
+							
+							if( $second_language eq "Deutsch" ) {
+								$second_language = "deu";
+							} elsif( $second_language eq "English" ) {
+								$second_language = "eng";
+							} elsif( $second_language eq "Français" ) {
+								$second_language = "fra";
+							} elsif( $second_language eq "Italiano" ) {
+								$second_language = "ita";
+							} elsif( $second_language eq "Español") {
+								$second_language = "spa";
+							} elsif( $second_language eq "Português" ) {
+								$second_language = "por";
+							} elsif( $second_language eq "Türkçe" ) {
+								$second_language = "tur";
+							} else {
+								$second_language = "mis";
+							}
+						}
+						
+						$link_video_url =~ s/http:\/\/.*zahs.tv/http:\/\/$server-hls5-vod.zahs.tv/g;
+						$link_video_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-vod.zahs.tv/g;
+						
+						$link_audio_url =~ s/http:\/\/.*zahs.tv/http:\/\/$server-hls5-vod.zahs.tv/g;
+						$link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-vod.zahs.tv/g;
+						
+						if( defined $multi and defined $second_link_audio_url ) {
+							$second_link_audio_url =~ s/http:\/\/.*zahs.tv/http:\/\/$server-hls5-vod.zahs.tv/g;
+							$second_link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-vod.zahs.tv/g;
+						}
+						
+						my $m3u8;
+						if( defined $multi ) {
+							$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$second_language\",DEFAULT=NO,AUTOSELECT=YES,LANGUAGE=\"$second_language\",URI=\"$second_link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+						} else {
+							$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"$link_audio_url\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\n$link_video_url";
+						}
+						
+						# CACHE PLAYLIST
+						open my $cachedfile, ">", "$movie_vod:$req_quality:$platform:cached";
+						print $cachedfile "$m3u8";
+						close $cachedfile;
+						
+						my $response = HTTP::Response->new( 200, 'OK');
+						$response->header('Content-Type' => 'text/html'),
+						$response->content($m3u8);
+						$c->send_response($response);
+						$c->close;
+						
+						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $quality | $platform - Playlist sent to client\n";
+						
+						# REMOVE CACHED PLAYLIST
+						sleep 1;
+						unlink "$movie_vod:$req_quality:$platform:cached";
 						exit;
 						
 					}
