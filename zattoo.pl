@@ -1762,6 +1762,11 @@ sub http_child {
 												}
 											}
 											
+											# IF CODE SETTING IS SET
+											if( $code ne "" ) {
+												$base_m3u_url = $base_m3u_url . "\&code=$code";
+											}
+											
 											# IF QUERY STRING FOR FFMPEG IS SET
 											if( defined $ffmpeg and $user_lv eq "fatal" and defined $multi ) {
 												$base_m3u_url = "pipe://$ffmpeglib -loglevel fatal -i \"$base_m3u_url\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1";
@@ -1826,6 +1831,11 @@ sub http_child {
 													} else {
 														undef $audio2;
 													}
+												}
+												
+												# IF CODE SETTING IS SET
+												if( $code ne "" ) {
+													$base_m3u_url = $base_m3u_url . "\&code=$code";
 												}
 												
 												# IF QUERY STRING FOR DOLBY IS SET
@@ -1932,6 +1942,11 @@ sub http_child {
 										}
 									}
 									
+									# IF CODE SETTING IS SET
+									if( $code ne "" ) {
+										$base_m3u_url = $base_m3u_url . "\&code=$code";
+									}
+									
 									# IF QUERY STRING FOR FFMPEG IS SET
 									if( defined $ffmpeg and $user_lv eq "fatal" and defined $multi ) {
 										$base_m3u_url = "pipe://$ffmpeglib -loglevel fatal -i \"$base_m3u_url\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1";
@@ -2007,6 +2022,11 @@ sub http_child {
 											} else {
 												undef $dolby;
 											}
+										}
+										
+										# IF CODE SETTING IS SET
+										if( $code ne "" ) {
+											$base_m3u_url = $base_m3u_url . "\&code=$code";
 										}
 										
 										# IF QUERY STRING FOR FFMPEG IS SET
@@ -2127,6 +2147,11 @@ sub http_child {
 						} else {
 							undef $dolby;
 						}
+					}
+					
+					# IF CODE SETTING IS SET
+					if( $code ne "" ) {
+						$vod_file =~ s/(.*index.m3u.*)/$1\&code=$code/g;
 					}
 					
 					# IF QUERY STRING FOR FFMPEG IS SET
@@ -2434,6 +2459,11 @@ sub http_child {
 											}
 										}
 										
+										# IF CODE SETTING IS SET
+										if( $code ne "" ) {
+											$base_m3u_url = $base_m3u_url . "\&code=$code";
+										}
+										
 										# IF QUERY STRING FOR FFMPEG IS SET
 										if( defined $ffmpeg and $user_lv eq "fatal" and defined $multi ) {
 											$base_m3u_url = "pipe://$ffmpeglib -loglevel fatal -i \"$base_m3u_url\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1";
@@ -2512,6 +2542,11 @@ sub http_child {
 									} else {
 										undef $dolby;
 									}
+								}
+								
+								# IF CODE SETTING IS SET
+								if( $code ne "" ) {
+									$base_m3u_url = $base_m3u_url . "\&code=$code";
 								}
 									
 								# IF QUERY STRING FOR FFMPEG IS SET
@@ -2771,6 +2806,11 @@ sub http_child {
 									}
 								}
 								
+								# IF CODE SETTING IS SET
+								if( $code ne "" ) {
+									$base_m3u_url = $base_m3u_url . "\&code=$code";
+								}
+								
 								# IF QUERY STRING FOR FFMPEG IS SET
 								if( defined $ffmpeg and $user_lv eq "fatal" and defined $multi ) {
 									$base_m3u_url = "pipe://$ffmpeglib -loglevel fatal -i \"$base_m3u_url\" -map 0:0 -map 0:1 -map 0:2 -c:a:0 copy -c:a:1 copy -c:v copy -f mpegts -metadata service_name=\"" . $name . "\" pipe:1";
@@ -3014,6 +3054,11 @@ sub http_child {
 						} else {
 							undef $dolby;
 						}
+					}
+					
+					# IF CODE SETTING IS SET
+					if( $code ne "" ) {
+						$base_m3u_url = $base_m3u_url . "\&code=$code";
 					}
 						
 					# IF QUERY STRING FOR FFMPEG IS SET
@@ -4808,7 +4853,13 @@ sub http_child {
 						
 					# EDIT SEGMENTS URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $final_quality | $platform - Editing segments file\n";
-					my $m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=$final_quality" . "000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality\&platform=hls\&zkey=$keyval";
+					my $m3u8;
+					
+					if( $code ne "" ) {
+						$m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=$final_quality" . "000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality\&platform=hls\&zkey=$keyval\&code=$code";
+					} else {
+						$m3u8 = "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=$final_quality" . "000\n" . "http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality\&platform=hls\&zkey=$keyval";
+					}
 					
 					# CACHE PLAYLIST
 					open my $cachedfile, ">", "$channel:$quality:$platform:cached";
@@ -5043,8 +5094,12 @@ sub http_child {
 					}
 						
 					my $m3u8;
-					if( defined $multi ) {
+					if( defined $multi and $code ne "" ) {
+						$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$audio\&platform=hls5\&zkey=$keyval\&code=$code\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$second_language\",DEFAULT=NO,AUTOSELECT=YES,LANGUAGE=\"$second_language\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$second_audio\&platform=hls5\&zkey=$second_keyval\&code=$code\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\nhttp://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&platform=hls5\&zkey=$keyval\&code=$code";
+					} elsif( defined $multi ) {
 						$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$audio\&platform=hls5\&zkey=$keyval\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$second_language\",DEFAULT=NO,AUTOSELECT=YES,LANGUAGE=\"$second_language\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$second_audio\&platform=hls5\&zkey=$second_keyval\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\nhttp://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&platform=hls5\&zkey=$keyval";
+					} elsif( $code ne "" ) {
+						$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$audio\&platform=hls5\&zkey=$keyval\&code=$code\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\nhttp://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&platform=hls5\&zkey=$keyval\&code=$code";
 					} else {
 						$m3u8 = "#EXTM3U\n#EXT-X-VERSION:5\n#EXT-X-INDEPENDENT-SEGMENTS\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio-group\",NAME=\"$language\",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE=\"$language\",URI=\"http://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&audio=$audio\&platform=hls5\&zkey=$keyval\"\n\n#EXT-X-STREAM-INF:BANDWIDTH=$final_bandwidth,CODECS=\"$final_codec\",RESOLUTION=$final_resolution,FRAME-RATE=$final_framerate,AUDIO=\"audio-group\",CLOSED-CAPTIONS=NONE\nhttp://$hostip:$port/index.m3u8?ch=$ch\&start=$start\&end=$end\&zid=$rec_fid\&bw=$final_quality_video\&platform=hls5\&zkey=$keyval";
 					}
