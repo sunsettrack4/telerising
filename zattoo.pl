@@ -2723,9 +2723,9 @@ sub http_child {
 								# BASE URL
 								my $base_m3u_url;
 								if( $ssldomain eq "false" ) {
-									$base_m3u_url = "http://$hostip:$port/index.m3u8?channel=" . $rid;
+									$base_m3u_url = "http://$hostip:$port/index.m3u8?recording=" . $rid;
 								} else {
-									$base_m3u_url = "https://$ssldomain/index.m3u8?channel=" . $rid;
+									$base_m3u_url = "https://$ssldomain/index.m3u8?recording=" . $rid;
 								}
 										
 								# IF QUERY STRING FOR PLATFORM IS SET
@@ -2970,9 +2970,9 @@ sub http_child {
 					# BASE URL
 					my $base_m3u_url;
 					if( $ssldomain eq "false" ) {
-						$base_m3u_url = "http://$hostip:$port/index.m3u8?channel=" . $rid;
+						$base_m3u_url = "http://$hostip:$port/index.m3u8?recording=" . $rid;
 					} else {
-						$base_m3u_url = "https://$ssldomain/index.m3u8?channel=" . $rid;
+						$base_m3u_url = "https://$ssldomain/index.m3u8?recording=" . $rid;
 					}
 								
 					# IF QUERY STRING FOR PLATFORM IS SET
