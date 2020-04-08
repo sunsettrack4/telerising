@@ -689,7 +689,12 @@ sub login_process {
 				#
 
 				# GET APPTOKEN
-				my $main_url      = "https://$provider/";
+				my $main_url;
+				if( $provider eq "zattoo.com" ) {
+					$main_url      = "https://zattoo.com/int/";
+				} else {
+					$main_url      = "https://$provider/";
+				}
 				
 				my $main_agent    = LWP::UserAgent->new(
 					ssl_opts => {
