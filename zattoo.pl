@@ -32,7 +32,7 @@ my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
 print "\n =========================                     I             +        \n";
-print " TELERISING API v0.3.4                          I    I         +        \n";
+print " TELERISING API v0.3.5                          I    I         +        \n";
 print " =========================                       I  I       +      +    \n";
 print "                                                  II                    \n";
 print "ZZZZZZZZZ       AA     TTTTTTTTTT TTTTTTTTTT    888888        888888    \n";
@@ -1355,6 +1355,11 @@ sub http_child {
 		
 		# SET API ACCESS CODE
 		my $access   = $params->{'code'};
+		
+		# SET INFO TAG
+		my $info     = $params->{'info'};
+		my $vod_info = $params->{'vod_info'};
+		my $mov_info = $params->{'vod_movie_info'};
 		
 		# READ SESSION FILE
 		if( not -e "session.json" ) {
@@ -2729,6 +2734,7 @@ sub http_child {
 					my $name         = $rec_data->{'title'};
 					my $episode      = $rec_data->{'episode_title'};
 					my $cid          = $rec_data->{'cid'};
+					my $pid          = $rec_data->{'program_id'};
 					my $record_start = $rec_data->{'start'};
 					my $image        = $rec_data->{'image_url'};
 					my $rid          = $rec_data->{'id'};
@@ -2764,9 +2770,9 @@ sub http_child {
 							
 							if( $cid eq $chid ) {
 								if( defined $episode ) {
-									$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " (" . $episode . ") | " . $cname . "\n";
+									$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"$pid\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " (" . $episode . ") | " . $cname . "\n";
 								} else {
-									$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
+									$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"$pid\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
 								}
 								
 								# BASE URL
@@ -2981,6 +2987,7 @@ sub http_child {
 					my $episode      = $rec_data->{'epg_subtitle'};
 					my $cname        = $rec_data->{'channel_display_name'};
 					my $chid         = $rec_data->{'channel_id'};
+					my $tele_id      = $rec_data->{'tele_id'};
 					my $record_start = $rec_data->{'start_utc'};
 					my $image        = $rec_data->{'epg_img_url'};
 					my $rid          = $rec_data->{'id'};
@@ -3013,12 +3020,12 @@ sub http_child {
 					
 					if( defined $episode ) {
 						if( $episode ne "" ) {
-							$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " (" . $episode . ") | " . $cname . "\n";
+							$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"$tele_id\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " (" . $episode . ") | " . $cname . "\n";
 						} else {
-							$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
+							$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"$tele_id\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
 						}
 					} else {
-						$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
+						$rec_m3u = $rec_m3u . "#EXTINF:0001 tvg-id=\"$tele_id\" group-title=\"$group_txt\" tvg-logo=\"" . $image . "\", " . $record_local . " | " . $name . " | " . $cname . "\n";
 					}
 					
 					# BASE URL
@@ -6925,7 +6932,7 @@ sub http_child {
 				$c->close;
 				exit;
 			} elsif( $remove_response->is_success ) {
-				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "SUCCESS: Recording removed\n\n";
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "SUCCESS: Recording removed\n\n";
 				
 				my $response = HTTP::Response->new( 200, 'OK');
 				$response->header('Content-Type' => 'text'),
@@ -6971,7 +6978,7 @@ sub http_child {
 				$c->close;
 				exit;
 			} elsif( $remove_response->is_success ) {
-				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "SUCCESS: Recording removed\n\n";
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "SUCCESS: Recording removed\n\n";
 				
 				my $response = HTTP::Response->new( 200, 'OK');
 				$response->header('Content-Type' => 'text'),
@@ -6980,8 +6987,205 @@ sub http_child {
 				$c->close;
 				exit;
 			}
-			
 		
+		
+		#
+		# PROVIDE ZATTOO VOD INFORMATION
+		#
+		
+		} elsif( defined $vod_info and $provider eq "zattoo.com" ) {
+			
+			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "VOD INFO $vod_info - Retrieving data\n";
+			
+			my $info_url   = "https://zattoo.com/zapi/avod/videos/$vod_info";
+			
+			# COOKIE
+			my $cookie_jar    = HTTP::Cookies->new;
+			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
+			
+			# INFO REQUEST
+			my $info_agent = LWP::UserAgent->new(
+				ssl_opts => {
+					SSL_verify_mode => $ssl_mode,
+					verify_hostname => $ssl_mode,
+					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+				},
+				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+			);
+				
+			$info_agent->cookie_jar($cookie_jar);
+			my $info_request  = HTTP::Request::Common::GET($info_url);
+			my $info_response = $info_agent->request($info_request);
+			
+			if( $info_response->is_error ) {
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "VOD INFO $vod_info - Invalid response\n\n";
+				print "RESPONSE:\n\n" . $info_response->content . "\n\n";
+				
+				my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+				$response->header('Content-Type' => 'text'),
+				$response->content("API ERROR: Invalid response on VoD info request");
+				$c->send_response($response);
+				$c->close;
+				exit;
+			} elsif( $info_response->is_success ) {
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "VOD INFO $vod_info - JSON file sent to client\n";
+				
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'application/json'),
+				$response->content($info_response->content);
+				$c->send_response($response);
+				$c->close;
+				exit;
+			}
+		
+		
+		#
+		# PROVIDE ZATTOO MOVIE VOD INFORMATION
+		#
+		
+		} elsif( defined $mov_info and $provider eq "zattoo.com" ) {
+			
+			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE VOD INFO $mov_info - Retrieving data\n";
+			
+			my $info_url   = "https://zattoo.com/zapi/vod/movies/$mov_info";
+			
+			# COOKIE
+			my $cookie_jar    = HTTP::Cookies->new;
+			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
+			
+			# INFO REQUEST
+			my $info_agent = LWP::UserAgent->new(
+				ssl_opts => {
+					SSL_verify_mode => $ssl_mode,
+					verify_hostname => $ssl_mode,
+					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+				},
+				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+			);
+				
+			$info_agent->cookie_jar($cookie_jar);
+			my $info_request  = HTTP::Request::Common::GET($info_url);
+			my $info_response = $info_agent->request($info_request);
+			
+			if( $info_response->is_error ) {
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE VOD INFO $mov_info - Invalid response\n\n";
+				print "RESPONSE:\n\n" . $info_response->content . "\n\n";
+				
+				my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+				$response->header('Content-Type' => 'text'),
+				$response->content("API ERROR: Invalid response on Movie VoD info request");
+				$c->send_response($response);
+				$c->close;
+				exit;
+			} elsif( $info_response->is_success ) {
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE VOD INFO $mov_info - JSON file sent to client\n";
+				
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'application/json'),
+				$response->content($info_response->content);
+				$c->send_response($response);
+				$c->close;
+				exit;
+			}
+		
+		
+		#
+		# PROVIDE ZATTOO RECORDING INFORMATION
+		#
+		
+		} elsif( defined $info and $provider ne "wilmaa.com" ) {
+			
+			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC INFO $info - Retrieving data\n";
+			
+			# URL
+			my $info_url   = "https://$provider/zapi/v2/cached/program/power_details/$powerid?program_ids=$info";
+				
+			# COOKIE
+			my $cookie_jar    = HTTP::Cookies->new;
+			$cookie_jar->set_cookie(0,'beaker.session.id',$session_token,'/',$provider,443);
+			
+			# INFO REQUEST
+			my $info_agent = LWP::UserAgent->new(
+				ssl_opts => {
+					SSL_verify_mode => $ssl_mode,
+					verify_hostname => $ssl_mode,
+					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+				},
+				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+			);
+				
+			$info_agent->cookie_jar($cookie_jar);
+			my $info_request  = HTTP::Request::Common::GET($info_url);
+			my $info_response = $info_agent->request($info_request);
+			
+			if( $info_response->is_error ) {
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC INFO $info - Invalid response\n\n";
+				print "RESPONSE:\n\n" . $info_response->content . "\n\n";
+				
+				my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+				$response->header('Content-Type' => 'text'),
+				$response->content("API ERROR: Invalid response on rec info request");
+				$c->send_response($response);
+				$c->close;
+				exit;
+			} elsif( $info_response->is_success ) {
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC INFO $info - JSON file sent to client\n";
+				
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'application/json'),
+				$response->content($info_response->content);
+				$c->send_response($response);
+				$c->close;
+				exit;
+			}
+		
+		
+		#
+		# PROVIDE WILMAA RECORDING INFORMATION
+		#
+		
+		} elsif( defined $info and $provider eq "wilmaa.com" ) {
+			
+			print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC INFO $info - Retrieving data\n";
+			
+			# URLs
+			my $info_url  = "https://tvprogram.wilmaa.com/programs/$info/info.json";
+				
+			# INFO REQUEST
+			my $info_agent = LWP::UserAgent->new(
+				ssl_opts => {
+					SSL_verify_mode => $ssl_mode,
+					verify_hostname => $ssl_mode,
+					SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+				},
+				agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+			);
+				
+			my $info_request  = HTTP::Request::Common::GET($info_url);
+			my $info_response = $info_agent->request($info_request);
+				
+			if( $info_response->is_error ) {
+				print "X " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC INFO $info - Invalid response\n\n";
+				print "RESPONSE:\n\n" . $info_response->content . "\n\n";
+				
+				my $response = HTTP::Response->new( 500, 'INTERNAL SERVER ERROR');
+				$response->header('Content-Type' => 'text'),
+				$response->content("API ERROR: Invalid response on rec info request");
+				$c->send_response($response);
+				$c->close;
+				exit;
+			} else {
+				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC INFO $info - JSON file sent to client\n";
+				
+				my $response = HTTP::Response->new( 200, 'OK');
+				$response->header('Content-Type' => 'application/json'),
+				$response->content($info_response->content);
+				$c->send_response($response);
+				$c->close;
+				exit;
+			}
+			
+			
 		#
 		# INVALID REQUEST
 		#
