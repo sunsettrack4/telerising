@@ -1672,7 +1672,13 @@ sub http_child {
 				
 				eval{
 					$ch_file    = decode_json($channel_response->content);
+				};
+				
+				eval{
 					$fav_file   = decode_json($fav_response->content);
+				};
+				
+				eval{
 					$rytec_file = decode_json($rytec_response->content);
 				};
 				
@@ -2358,8 +2364,17 @@ sub http_child {
 				
 				eval{
 					$ch_file    = decode_json($channel_response->content);
+				};
+				
+				eval{
 					$conf_file  = decode_json($config_response->content);
+				};
+				
+				eval{
 					$fav_file   = decode_json($fav_response_edited);
+				};
+				
+				eval{
 					$rytec_file = decode_json($rytec_response->content);
 				};
 				
@@ -2692,6 +2707,9 @@ sub http_child {
 				
 				eval{
 					$ch_file       = decode_json($channel_response->content);
+				};
+				
+				eval{
 					$playlist_file = decode_json($playlist_response->content);
 				};
 				
