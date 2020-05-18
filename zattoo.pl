@@ -32,7 +32,7 @@ my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
 print "\n =========================                     I             +        \n";
-print " TELERISING API v0.3.4                          I    I         +        \n";
+print " TELERISING API v0.3.5                          I    I         +        \n";
 print " =========================                       I  I       +      +    \n";
 print "                                                  II                    \n";
 print "ZZZZZZZZZ       AA     TTTTTTTTTT TTTTTTTTTT    888888        888888    \n";
@@ -142,6 +142,12 @@ sub login_process {
 			my $ssldomain    = $userfile->{'ssldomain'};
 			# my $easyepg      = $userfile->{'epg'};
 			my $ssl_verify;
+			
+			if( defined $ondemand ) {
+				if( $ondemand ne "true" ) {
+					undef $ondemand
+				}
+			}
 
 			# SET DEFAULT VALUES TO REPLACE URL QUERY STRINGS
 			my $user_platform  = $userfile->{'platform'};
