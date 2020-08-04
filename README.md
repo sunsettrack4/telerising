@@ -33,6 +33,7 @@ This API provides channel playlists to playback streams on all compatible device
 * glattvision: iptv.glattvision.ch
 * SAK TV: www.saktv.ch
 * quantum TV: www.quantum-tv.com
+* Wambo TV: tv.wambo.ch
 * eir TV: tv.eir.ie
 
 #### Supported platforms
@@ -88,13 +89,13 @@ sudo cpan install utf8
 mkdir ~/telerising
 
 # Download the .zip file and extract the files into your folder:
-wget https://github.com/sunsettrack4/telerising/archive/v0.3.4.zip
+wget https://github.com/sunsettrack4/telerising/archive/v0.3.7.zip
 
 # Unzip the file:
-unzip v0.3.4.zip
+unzip v0.3.7.zip
 
 # Move all script files to the created folder
-mv ~/telerising-0.3.4/* ~/telerising/
+mv ~/telerising-0.3.7/* ~/telerising/
 
 # Set system-wide permissions to the folder and its related files
 sudo chmod 0777 ~/telerising
@@ -249,6 +250,8 @@ zba6-2
 1und1-dus1901-4
 1und1-ess1901-1
 1und1-ess1901-2
+1und1-stu1903-1
+1und1-stu1903-2
 matterlau1-0
 matterlau1-1
 matterzrh1-0

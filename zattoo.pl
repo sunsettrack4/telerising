@@ -32,7 +32,7 @@ my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
 print "\n =========================                     I             +        \n";
-print " TELERISING API v0.3.6                          I    I         +        \n";
+print " TELERISING API v0.3.7                          I    I         +        \n";
 print " =========================                       I  I       +      +    \n";
 print "                                                  II                    \n";
 print "ZZZZZZZZZ       AA     TTTTTTTTTT TTTTTTTTTT    888888        888888    \n";
@@ -231,7 +231,7 @@ sub login_process {
 				$zserver = "fr5-0";
 			} elsif( $zserver eq "" ) {
 				$zserver = "fr5-0";
-			} elsif( $zserver =~ /fr5-[0-5]|fra3-[0-3]|zh2-[0-9]|zba6-[0-2]|1und1-fra1902-[1-4]|1und1-hhb1000-[1-4]|1und1-dus1901-[1-4]|1und1-ess1901-[1-2]|matterlau1-[0-1]|matterzrh1-[0-1]/ ) {
+			} elsif( $zserver =~ /fr5-[0-5]|fra3-[0-3]|zh2-[0-9]|zba6-[0-2]|1und1-fra1902-[1-4]|1und1-hhb1000-[1-4]|1und1-dus1901-[1-4]|1und1-ess1901-[1-2]|1und1-stu1903-[1-2]|matterlau1-[0-1]|matterzrh1-[0-1]/ ) {
 				INFO "Custom Zattoo server \"$zserver\" will be used.\n";
 			} else {
 				INFO "Custom Zattoo server \"$zserver\" is not supported, default server will be used instead.\n";
@@ -384,7 +384,7 @@ sub login_process {
 			# CHECK PROVIDER
 			if( $provider eq "www.zattoo.com" ) {
 				$provider = "zattoo.com";
-			} elsif( $provider =~ /zattoo.com|wilmaa.com|www.1und1.tv|mobiltv.quickline.com|tvplus.m-net.de|player.waly.tv|www.meinewelt.cc|www.bbv-tv.net|www.vtxtv.ch|www.myvisiontv.ch|iptv.glattvision.ch|www.saktv.ch|nettv.netcologne.de|tvonline.ewe.de|www.quantum-tv.com|tv.salt.ch|tvonline.swb-gruppe.de|tv.eir.ie/ ) {
+			} elsif( $provider =~ /zattoo.com|wilmaa.com|www.1und1.tv|mobiltv.quickline.com|tvplus.m-net.de|player.waly.tv|www.meinewelt.cc|www.bbv-tv.net|www.vtxtv.ch|www.myvisiontv.ch|iptv.glattvision.ch|www.saktv.ch|nettv.netcologne.de|tvonline.ewe.de|www.quantum-tv.com|tv.salt.ch|tvonline.swb-gruppe.de|tv.wambo.ch|tv.eir.ie/ ) {
 				print "";
 			} else {
 				ERROR "Provider is not supported. Please recheck the domain.\n\n";
