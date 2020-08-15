@@ -32,7 +32,7 @@ my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
 print "\n =========================                     I             +        \n";
-print " TELERISING API v0.3.7                          I    I         +        \n";
+print " TELERISING API v0.3.8                          I    I         +        \n";
 print " =========================                       I  I       +      +    \n";
 print "                                                  II                    \n";
 print "ZZZZZZZZZ       AA     TTTTTTTTTT TTTTTTTTTT    888888        888888    \n";
@@ -817,7 +817,7 @@ sub login_process {
 					};
 
 					if( not defined $analyse_apptoken_login ) {
-						ERROR "Unable to parse apptoken json data (trying old apptoken method now...)\n\n";
+						INFO "Unable to parse apptoken json data (trying old apptoken method now...)\n\n";
 					
 					} else {
 					
