@@ -869,9 +869,13 @@ sub login_process {
 					my $new_parser        = HTML::Parser->new;
 					my $new_main_content  = $new_main_response->content;
 					
-					eval{
-						$apptoken     = $scriptvalues[0]->as_HTML;
-					};
+					foreach my $js_script (@scriptvalues) {
+						
+						if( $js_script =~ m/<script type="text\/javascript">window.appToken/ ) {
+							$apptoken = $js_script;
+						}
+						
+					}
 					
 					if( defined $apptoken ) {
 						$apptoken        =~ s/(.*window.appToken = ')(.*)(';.*)/$2/g;
