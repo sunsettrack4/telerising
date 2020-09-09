@@ -744,9 +744,15 @@ sub login_process {
 				my @scriptvalues = $zattootree->look_down('type' => 'text/javascript');
 				my $js_link;
 				
-				eval{
-					$js_link      = $scriptvalues[1]->as_HTML;
-				};
+				foreach my $js_script (@scriptvalues) {
+					
+					$js_script = $js_script->as_HTML;
+					
+					if( $js_script =~ m/<script src="\/app-/ ) {
+						$js_link = $js_script;
+					}
+					
+				}
 				
 				if( defined $js_link ) {
 					$js_link        =~ s/(<script src="\/)(.*)(" type=".*)/$2/g;
