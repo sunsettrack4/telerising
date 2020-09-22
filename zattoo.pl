@@ -741,7 +741,7 @@ sub login_process {
 					exit;
 				}
 
-				my @scriptvalues = $zattootree->look_down('type' => 'text/javascript');
+				my @scriptvalues = $zattootree->look_down(_tag => 'script');
 				my $js_link;
 				
 				foreach my $js_script (@scriptvalues) {
@@ -755,7 +755,7 @@ sub login_process {
 				}
 				
 				if( defined $js_link ) {
-					$js_link        =~ s/(<script src="\/)(.*)(" type=".*)/$2/g;
+					$js_link        =~ s/(<script src="\/)(.*)(.js".*)/$2.js/g;
 				
 					# GET APPTOKEN JSON
 					my $js_url = "https://$provider/$js_link";
