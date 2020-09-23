@@ -32,7 +32,7 @@ my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
 print "\n =========================                     I             +        \n";
-print " TELERISING API v0.4.0                          I    I         +        \n";
+print " TELERISING API v0.4.1                          I    I         +        \n";
 print " =========================                       I  I       +      +    \n";
 print "                                                  II                    \n";
 print "ZZZZZZZZZ       AA     TTTTTTTTTT TTTTTTTTTT    888888        888888    \n";
@@ -880,6 +880,41 @@ sub login_process {
 					if( defined $apptoken ) {
 						$apptoken        =~ s/(.*window.appToken = ')(.*)(';.*)/$2/g;
 					} else {
+						INFO "Unable to retrieve apptoken (trying another apptoken method now...)\n\n";
+					}
+				}
+				
+				if( not defined $apptoken ) {
+					
+					my $new_token_url = "https://$provider/token-46a1dfccbd4c3bdaf6182fea8f8aea3f.json";
+					
+					my $new_token_agent    = LWP::UserAgent->new(
+						ssl_opts => {
+							SSL_verify_mode => $ssl_mode,
+							verify_hostname => $ssl_mode,
+							SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+						},
+						agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+					);
+
+					my $new_token_request  = HTTP::Request::Common::GET($new_token_url);
+					my $new_token_response = $new_token_agent->request($new_token_request);
+
+					if( $new_token_response->is_error ) {
+						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
+						ERROR "RESPONSE:\n\n" . $new_token_response->content . "\n\n";
+						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)";
+						close $error_file;
+						exit;
+					}
+					
+					my $new_token_content  = $new_token_response->content;
+					
+					if( $new_token_content =~ m/{"success": true, "session_token": "/ ) {
+						$apptoken = $new_token_content;
+						$apptoken =~ s/(\{"success": true, "session_token": ")(.*)("\})/$2/g;
+					} else {
 						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve apptoken)\n\n";
 						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
 						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve apptoken)";
@@ -887,6 +922,7 @@ sub login_process {
 						exit;
 					}
 				}
+					
 
 				# GET SESSION ID
 				my $session_url    = "https://$provider/zapi/session/hello";
