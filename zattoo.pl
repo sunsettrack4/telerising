@@ -6099,10 +6099,10 @@ sub http_child {
 							$second_link_audio_url = $uri . "/" . $second_final_quality_audio . $3 . $4;
 						}
 							
-						$link_video_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
+						$link_video_url =~ s/https:\/\/zattoo-hls[57]-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
 						$link_video_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
 							
-						$link_audio_url =~ s/https:\/\/zattoo-hls5-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
+						$link_audio_url =~ s/https:\/\/zattoo-hls[57]-live.akamaized.net/https:\/\/$server-hls5-live.zahs.tv/g;
 						$link_audio_url =~ s/https:\/\/.*zahs.tv/https:\/\/$server-hls5-live.zahs.tv/g;
 						
 						if( defined $multi and defined $second_link_audio_url ) {
