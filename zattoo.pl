@@ -32,7 +32,7 @@ my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
 print "\n =========================                     I             +        \n";
-print " TELERISING API v0.4.1                          I    I         +        \n";
+print " TELERISING API v0.4.2                          I    I         +        \n";
 print " =========================                       I  I       +      +    \n";
 print "                                                  II                    \n";
 print "ZZZZZZZZZ       AA     TTTTTTTTTT TTTTTTTTTT    888888        888888    \n";
@@ -231,7 +231,7 @@ sub login_process {
 				$zserver = "fr5-0";
 			} elsif( $zserver eq "" ) {
 				$zserver = "fr5-0";
-			} elsif( $zserver =~ /fr5-[0-5]|fra3-[0-3]|zh2-[0-9]|zba6-[0-2]|1und1-fra1902-[1-4]|1und1-hhb1000-[1-4]|1und1-dus1901-[1-4]|1und1-ess1901-[1-2]|1und1-stu1903-[1-2]|matterlau1-[0-1]|matterzrh1-[0-1]/ ) {
+			} elsif( $zserver =~ /fr5-[0-5]|fra3-[0-3]|zh2-[0-9]|zba6-[0-2]|1und1-fra1902-[1-4]|1und1-hhb1000-[1-4]|1und1-dus1901-[1-4]|1und1-ess1901-[1-2]|1und1-stu1903-[1-2]|matterlau1-[0-1]|matterzrh1-[0-1]|1und1-unn1101-[1-2]|1und1-mun1901-[1-2]|1und1-mun1902-[1-4]|1und1-dor1101-[1-2]|1und1-dor1901-[1-2]|1und1-wup1101-[1-2]/ ) {
 				INFO "Custom Zattoo server \"$zserver\" will be used.\n";
 			} else {
 				INFO "Custom Zattoo server \"$zserver\" is not supported, default server will be used instead.\n";

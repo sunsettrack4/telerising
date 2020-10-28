@@ -89,13 +89,13 @@ sudo cpan install utf8
 mkdir ~/telerising
 
 # Download the .zip file and extract the files into your folder:
-wget https://github.com/sunsettrack4/telerising/archive/v0.4.1.zip
+wget https://github.com/sunsettrack4/telerising/archive/v0.4.2.zip
 
 # Unzip the file:
-unzip v0.4.1.zip
+unzip v0.4.2.zip
 
 # Move all script files to the created folder
-mv ~/telerising-0.4.1/* ~/telerising/
+mv ~/telerising-0.4.2/* ~/telerising/
 
 # Set system-wide permissions to the folder and its related files
 sudo chmod 0777 ~/telerising
@@ -252,6 +252,20 @@ zba6-2
 1und1-ess1901-2
 1und1-stu1903-1
 1und1-stu1903-2
+1und1-unn1101-1
+1und1-unn1101-2
+1und1-mun1901-1
+1und1-mun1901-2
+1und1-mun1902-1
+1und1-mun1902-2
+1und1-mun1902-3
+1und1-mun1902-4
+1und1-dor1101-1
+1und1-dor1101-2
+1und1-dor1901-1
+1und1-dor1901-2
+1und1-wup1101-1
+1und1-wup1101-2
 matterlau1-0
 matterlau1-1
 matterzrh1-0
