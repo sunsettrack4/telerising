@@ -1030,6 +1030,8 @@ sub login_process {
 				
 				if( $country eq "CH" ) {
 					INFO "COUNTRY: SWITZERLAND\n";
+				} elsif( $country eq "AT" ) {
+					INFO "COUNTRY: AUSTRIA\n";
 				} elsif( $country eq "DE" ) {
 					INFO "COUNTRY: GERMANY\n";
 				} elsif( $provider eq "zattoo.com" ) {
@@ -1084,6 +1086,35 @@ sub login_process {
 					} elsif( $alias ne "DE" and $product_code =~ /PREMIUM|ULTIMATE/ ) {
 						if( $alias =~ /BE|FR|IT|LU|NL|DK|IE|UK|GR|PT|ES|FI|AT|SE|EE|LT|LV|MT|PL|SK|SI|CZ|HU|CY|BG|RO|HR|GP|GY|MQ|RE|YT|AN/ ) {
 							INFO "No German IP address detected, Zattoo services can be used within the EU.\n";
+							$tv_mode = "live";
+						} else {
+							ERROR "No supported IP address (EU) detected, Zattoo services can't be used.\n\n";
+							open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+							print $error_file "ERROR: No supported IP address (EU) detected, Zattoo services can't be used.";
+							close $error_file;
+							exit;
+						}
+					} else {
+						$tv_mode = "live";
+					}
+				
+				} elsif( $country eq "AT" and $provider eq "zattoo.com" ) {
+					
+					if( $alias ne "AT" and $product_code eq "FREE" ) {
+						ERROR "No Austrian IP address detected, Zattoo services can't be used.\n\n";
+						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+						print $error_file "ERROR: No Austrian IP address detected, Zattoo services can't be used.";
+						close $error_file;
+						exit;
+					} elsif ( $alias eq "AT" and $product_code eq "FREE" ) {
+						ERROR "Invalid account type detected, Zattoo services can't be used.\n\n";
+						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+						print $error_file "ERROR: Invalid account type detected, Zattoo services can't be used.";
+						close $error_file;
+						exit;
+					} elsif( $alias ne "AT" and $product_code =~ /PREMIUM|ULTIMATE/ ) {
+						if( $alias =~ /BE|FR|IT|LU|NL|DK|IE|UK|GR|PT|ES|FI|DE|SE|EE|LT|LV|MT|PL|SK|SI|CZ|HU|CY|BG|RO|HR|GP|GY|MQ|RE|YT|AN/ ) {
+							INFO "No Austrian IP address detected, Zattoo services can be used within the EU.\n";
 							$tv_mode = "live";
 						} else {
 							ERROR "No supported IP address (EU) detected, Zattoo services can't be used.\n\n";
