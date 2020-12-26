@@ -1270,11 +1270,18 @@ sub login_process {
 										$teaser_title =~ s/,/ /g;
 										$teaser_title =~ s/-/_/g;
 										
-										
-										if( defined $teaser_text ) {
-											$vod_m3u = $vod_m3u . "#EXTINF:0001 tvg-id=\"" . $teaser_code . "\" group-title=\"" . $header_name . "\" tvg-logo=\"https://images.zattic.com/cms/" . $teaser_image . "/format_320x180.jpg\", " . $teaser_title . " (" . $teaser_text . ")\n";
+										if( defined $teaser_image ) {
+											if( defined $teaser_text ) {
+												$vod_m3u = $vod_m3u . "#EXTINF:0001 tvg-id=\"" . $teaser_code . "\" group-title=\"" . $header_name . "\" tvg-logo=\"https://images.zattic.com/cms/" . $teaser_image . "/format_320x180.jpg\", " . $teaser_title . " (" . $teaser_text . ")\n";
+											} else {
+												$vod_m3u = $vod_m3u . "#EXTINF:0001 tvg-id=\"" . $teaser_code . "\" group-title=\"" . $header_name . "\" tvg-logo=\"https://images.zattic.com/cms/" . $teaser_image . "/format_320x180.jpg\", " . $teaser_title . "\n";
+											}
 										} else {
-											$vod_m3u = $vod_m3u . "#EXTINF:0001 tvg-id=\"" . $teaser_code . "\" group-title=\"" . $header_name . "\" tvg-logo=\"https://images.zattic.com/cms/" . $teaser_image . "/format_320x180.jpg\", " . $teaser_title . "\n";
+											if( defined $teaser_text ) {
+												$vod_m3u = $vod_m3u . "#EXTINF:0001 tvg-id=\"" . $teaser_code . "\" group-title=\"" . $header_name . "\", " . $teaser_title . " (" . $teaser_text . ")\n";
+											} else {
+												$vod_m3u = $vod_m3u . "#EXTINF:0001 tvg-id=\"" . $teaser_code . "\" group-title=\"" . $header_name . "\", " . $teaser_title . "\n";
+											}
 										}
 										
 										if( $teaser_type eq "Avod::Video" ) {
@@ -4343,6 +4350,7 @@ sub http_child {
 					}
 					
 					my $vodstream_url = $vodview_file->{'stream'}->{'cast_url'};
+					$vodstream_url =~ s/hls5/hls7/g;
 					
 					# LOAD PLAYLIST URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "VOD $vod | $quality | $platform - Loading M3U8\n";
@@ -4603,7 +4611,7 @@ sub http_child {
 						# EDIT PLAYLIST
 						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "VOD $vod | $quality | $platform - Editing M3U8\n";
 						$link        =~ /(.*)(NAME=")(.*)(",DEFAULT=.*)($final_quality_audio.*?z32=)(.*)"/m;
-						my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $6;
+						my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0_tid_1_nd_4000_mbr_5000_vd_1000000.m3u8?z32=" . $6;
 						my $link_audio_url = $uri . "/" . $5 . $6;
 						my $language = $3;
 						
@@ -4798,6 +4806,7 @@ sub http_child {
 					}
 					
 					my $vodstream_url = $vodview_file->{'stream'}->{'cast_url'};
+					$vodstream_url =~ s/hls5/hls7/g;
 					
 					# LOAD PLAYLIST URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $quality | $platform - Loading M3U8\n";
@@ -5058,7 +5067,7 @@ sub http_child {
 						# EDIT PLAYLIST
 						print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $quality | $platform - Editing M3U8\n";
 						$link        =~ /(.*)(NAME=")(.*)(",DEFAULT=.*)($final_quality_audio.*?z32=)(.*)"/m;
-						my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0.m3u8?z32=" . $6;
+						my $link_video_url = $uri . "/" . "t_track_video_bw_$final_quality_video" . "_num_0_tid_1_nd_4000_mbr_5000_vd_1000000.m3u8.m3u8?z32=" . $6;
 						my $link_audio_url = $uri . "/" . $5 . $6;
 						my $language = $3;
 						
