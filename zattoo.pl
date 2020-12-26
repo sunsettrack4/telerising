@@ -3888,6 +3888,7 @@ sub http_child {
 					}
 					
 					my $liveview_url = $liveview_file->{'stream'}->{'url'};
+					$liveview_url =~ s/hls5/hls7/g;
 					
 					# LOAD PLAYLIST URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Loading M3U8\n";
@@ -5377,6 +5378,7 @@ sub http_child {
 					}
 					
 					my $rec_url = $recview_file->{'stream'}->{'url'};
+					$rec_url =~ s/hls5/hls7/g;
 					
 					# LOAD PLAYLIST URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Loading M3U8\n";
@@ -6322,6 +6324,7 @@ sub http_child {
 				}
 				
 				my $recch_url = $recchview_file->{'stream'}->{'url'};
+				$recch_url =~ s/hls5/hls7/g;
 					
 				# LOAD PLAYLIST URL
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Loading M3U8\n";
