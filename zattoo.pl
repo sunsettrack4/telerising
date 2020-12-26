@@ -32,7 +32,7 @@ my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
 print "\n =========================                     I             +        \n";
-print " TELERISING API v0.4.3                          I    I         +        \n";
+print " TELERISING API v0.4.4                          I    I         +        \n";
 print " =========================                       I  I       +      +    \n";
 print "                                                  II                    \n";
 print "ZZZZZZZZZ       AA     TTTTTTTTTT TTTTTTTTTT    888888        888888    \n";
@@ -3895,7 +3895,6 @@ sub http_child {
 					}
 					
 					my $liveview_url = $liveview_file->{'stream'}->{'url'};
-					$liveview_url =~ s/hls5/hls7/g;
 					
 					# LOAD PLAYLIST URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "LIVE-TV $channel | $quality | $platform - Loading M3U8\n";
@@ -4350,7 +4349,6 @@ sub http_child {
 					}
 					
 					my $vodstream_url = $vodview_file->{'stream'}->{'cast_url'};
-					$vodstream_url =~ s/hls5/hls7/g;
 					
 					# LOAD PLAYLIST URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "VOD $vod | $quality | $platform - Loading M3U8\n";
@@ -4806,7 +4804,6 @@ sub http_child {
 					}
 					
 					my $vodstream_url = $vodview_file->{'stream'}->{'cast_url'};
-					$vodstream_url =~ s/hls5/hls7/g;
 					
 					# LOAD PLAYLIST URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "MOVIE $movie_vod | $quality | $platform - Loading M3U8\n";
@@ -5387,7 +5384,6 @@ sub http_child {
 					}
 					
 					my $rec_url = $recview_file->{'stream'}->{'url'};
-					$rec_url =~ s/hls5/hls7/g;
 					
 					# LOAD PLAYLIST URL
 					print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "PVR-TV $channel | $quality | $platform - Loading M3U8\n";
@@ -6333,7 +6329,6 @@ sub http_child {
 				}
 				
 				my $recch_url = $recchview_file->{'stream'}->{'url'};
-				$recch_url =~ s/hls5/hls7/g;
 					
 				# LOAD PLAYLIST URL
 				print "* " . localtime->strftime('%Y-%m-%d %H:%M:%S ') . "REC $rec_ch | $quality | $platform - Loading M3U8\n";
