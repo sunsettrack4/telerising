@@ -32,7 +32,7 @@ my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
 print "\n =========================                     I             +        \n";
-print " TELERISING API v0.4.4                          I    I         +        \n";
+print " TELERISING API v0.4.5                          I    I         +        \n";
 print " =========================                       I  I       +      +    \n";
 print "                                                  II                    \n";
 print "ZZZZZZZZZ       AA     TTTTTTTTTT TTTTTTTTTT    888888        888888    \n";
@@ -782,7 +782,7 @@ sub login_process {
 					}
 					
 					my $token_url = $js_response->content;
-					$token_url =~ s/(.*)(token-.*)(\.json"})(.*)/$2\.json/g;
+					$token_url =~ s/(.*)(token-+(.*?)\.json)(.*)/$2/g;
 					
 					if( not defined $2 ) {
 						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse token URL)\n\n";
@@ -793,7 +793,7 @@ sub login_process {
 					}
 
 					# GET APPTOKEN
-					my $apptoken_url = "https://$provider/$2.json";
+					my $apptoken_url = "https://$provider/$2";
 					
 					my $apptoken_agent    = LWP::UserAgent->new(
 						ssl_opts => {
