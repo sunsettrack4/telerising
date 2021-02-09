@@ -32,7 +32,7 @@ my $tee = new IO::Tee(\*STDOUT, ">>log.txt");
 select $tee;
 
 print "\n =========================                     I             +        \n";
-print " TELERISING API v0.4.5                          I    I         +        \n";
+print " TELERISING API v0.4.6                          I    I         +        \n";
 print " =========================                       I  I       +      +    \n";
 print "                                                  II                    \n";
 print "ZZZZZZZZZ       AA     TTTTTTTTTT TTTTTTTTTT    888888        888888    \n";
@@ -693,12 +693,14 @@ sub login_process {
 				#
 				# ZATTOO
 				#
-
-				# GET LOGIN HTML
-				my $main_url      = "https://$provider/login/";
+				
+				# DEFINE APPTOKEN
 				my $apptoken;
 				
-				my $main_agent    = LWP::UserAgent->new(
+				# METHOD 1: GET APPTOKEN VIA MAIN URL
+				my $token_url = "https://$provider/token.json";
+				
+				my $token_agent    = LWP::UserAgent->new(
 					ssl_opts => {
 						SSL_verify_mode => $ssl_mode,
 						verify_hostname => $ssl_mode,
@@ -707,219 +709,263 @@ sub login_process {
 					agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
 				);
 
-				my $main_request  = HTTP::Request::Common::GET($main_url);
-				my $main_response = $main_agent->request($main_request);
-
-				if( $main_response->is_error ) {
-					ERROR "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
-					ERROR "RESPONSE:\n\n" . $main_response->content . "\n\n";
-					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
-					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)";
-					close $error_file;
-					exit;
-				}
-
-				my $parser        = HTML::Parser->new;
-				my $main_content  = $main_response->content;
-
-				if( not defined $main_content) {
-					ERROR "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)\n\n";
-					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
-					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)";
-					close $error_file;
-					exit;
-				}
-
-				my $zattootree   = HTML::TreeBuilder->new;
-				$zattootree->parse($main_content);
-
-				if( not defined $zattootree) {
-					ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)\n\n";
-					open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
-					print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)";
-					close $error_file;
-					exit;
-				}
-
-				my @scriptvalues = $zattootree->look_down(_tag => 'script');
-				my $js_link;
+				my $token_request  = HTTP::Request::Common::GET($token_url);
+				my $token_response = $token_agent->request($token_request);
 				
-				foreach my $js_script (@scriptvalues) {
+				if( $token_response->is_success ) {
 					
-					$js_script = $js_script->as_HTML;
-					
-					if( $js_script =~ m/<script src="\/app-/ ) {
-						$js_link = $js_script;
-					}
-					
-				}
-				
-				if( defined $js_link ) {
-					$js_link        =~ s/(<script src="\/)(.*)(.js".*)/$2.js/g;
-				
-					# GET APPTOKEN JSON
-					my $js_url = "https://$provider/$js_link";
-					
-					my $js_agent    = LWP::UserAgent->new(
-						ssl_opts => {
-							SSL_verify_mode => $ssl_mode,
-							verify_hostname => $ssl_mode,
-							SSL_ca_file => Mozilla::CA::SSL_ca_file()  
-						},
-						agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
-					);
-
-					my $js_request  = HTTP::Request::Common::GET($js_url);
-					my $js_response = $js_agent->request($js_request);
-
-					if( $js_response->is_error ) {
-						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
-						ERROR "RESPONSE:\n\n" . $js_response->content . "\n\n";
-						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
-						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)";
-						close $error_file;
-						exit;
-					}
-					
-					my $token_url = $js_response->content;
-					$token_url =~ s/(.*)(token-+(.*?)\.json)(.*)/$2/g;
-					
-					if( not defined $2 ) {
-						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse token URL)\n\n";
-						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
-						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse token URL)";
-						close $error_file;
-						exit;
-					}
-
-					# GET APPTOKEN
-					my $apptoken_url = "https://$provider/$2";
-					
-					my $apptoken_agent    = LWP::UserAgent->new(
-						ssl_opts => {
-							SSL_verify_mode => $ssl_mode,
-							verify_hostname => $ssl_mode,
-							SSL_ca_file => Mozilla::CA::SSL_ca_file()  
-						},
-						agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
-					);
-
-					my $apptoken_request  = HTTP::Request::Common::GET($apptoken_url);
-					my $apptoken_response = $apptoken_agent->request($apptoken_request);
-					
-					if( $apptoken_response->is_error ) {
-						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to get token json file)\n\n";
-						ERROR "RESPONSE:\n\n" . $apptoken_response->content . "\n\n";
-						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
-						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to get token json file)";
-						close $error_file;
-						exit;
-					}
-
 					my $analyse_apptoken_login;
 					
 					eval{
-						$analyse_apptoken_login = decode_json($apptoken_response->content);
+						$analyse_apptoken_login = decode_json($token_response->content);
 					};
 
 					if( not defined $analyse_apptoken_login ) {
-						INFO "Unable to parse apptoken json data (trying old apptoken method now...)\n\n";
+						INFO "Unable to parse apptoken json data from main resource (trying next apptoken method now...)\n\n";
 					
 					} else {
 					
 						if( $analyse_apptoken_login->{"success"} ) {
 							$apptoken = $analyse_apptoken_login->{"session_token"}
 						} else {
-							ERROR "Unable to parse apptoken from json file\n\n";
+							INFO "Unable to retrieve apptoken from main resource (trying next apptoken method now...)\n\n";
+						}
+						
+					}
+					
+				}
+				
+				# METHOD 2: GET APPTOKEN VIA APP URL MENTIONED IN HTML
+				if( not defined $apptoken ) {
+
+					# GET LOGIN HTML
+					my $main_url      = "https://$provider/login/";
+					
+					my $main_agent    = LWP::UserAgent->new(
+						ssl_opts => {
+							SSL_verify_mode => $ssl_mode,
+							verify_hostname => $ssl_mode,
+							SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+						},
+						agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+					);
+
+					my $main_request  = HTTP::Request::Common::GET($main_url);
+					my $main_response = $main_agent->request($main_request);
+
+					if( $main_response->is_error ) {
+						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
+						ERROR "RESPONSE:\n\n" . $main_response->content . "\n\n";
+						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)";
+						close $error_file;
+						exit;
+					}
+
+					my $parser        = HTML::Parser->new;
+					my $main_content  = $main_response->content;
+
+					if( not defined $main_content) {
+						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)\n\n";
+						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (empty webpage content)";
+						close $error_file;
+						exit;
+					}
+
+					my $zattootree   = HTML::TreeBuilder->new;
+					$zattootree->parse($main_content);
+
+					if( not defined $zattootree) {
+						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)\n\n";
+						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse webpage)";
+						close $error_file;
+						exit;
+					}
+
+					my @scriptvalues = $zattootree->look_down(_tag => 'script');
+					my $js_link;
+					
+					foreach my $js_script (@scriptvalues) {
+						
+						$js_script = $js_script->as_HTML;
+						
+						if( $js_script =~ m/<script src="\/app-/ ) {
+							$js_link = $js_script;
+						}
+						
+					}
+					
+					if( defined $js_link ) {
+						$js_link        =~ s/(<script src="\/)(.*)(.js".*)/$2.js/g;
+					
+						# GET APPTOKEN JSON
+						my $js_url = "https://$provider/$js_link";
+						
+						my $js_agent    = LWP::UserAgent->new(
+							ssl_opts => {
+								SSL_verify_mode => $ssl_mode,
+								verify_hostname => $ssl_mode,
+								SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+							},
+							agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+						);
+
+						my $js_request  = HTTP::Request::Common::GET($js_url);
+						my $js_response = $js_agent->request($js_request);
+
+						if( $js_response->is_error ) {
+							ERROR "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
+							ERROR "RESPONSE:\n\n" . $js_response->content . "\n\n";
 							open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
-							print $error_file "ERROR: Unable to parse apptoken from json file";
+							print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)";
 							close $error_file;
 							exit;
 						}
 						
-					}
-					
-				}
-				
-				if( not defined $apptoken ) {
-					
-					my $new_main_url      = "https://$provider/";
-				
-					my $new_main_agent    = LWP::UserAgent->new(
-						ssl_opts => {
-							SSL_verify_mode => $ssl_mode,
-							verify_hostname => $ssl_mode,
-							SSL_ca_file => Mozilla::CA::SSL_ca_file()  
-						},
-						agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
-					);
-
-					my $new_main_request  = HTTP::Request::Common::GET($new_main_url);
-					my $new_main_response = $new_main_agent->request($new_main_request);
-
-					if( $new_main_response->is_error ) {
-						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
-						ERROR "RESPONSE:\n\n" . $new_main_response->content . "\n\n";
-						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
-						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)";
-						close $error_file;
-						exit;
-					}
-
-					my $new_parser        = HTML::Parser->new;
-					my $new_main_content  = $new_main_response->content;
-					
-					foreach my $js_script (@scriptvalues) {
+						my $token_url = $js_response->content;
+						$token_url =~ s/(.*)(token-+(.*?)\.json)(.*)/$2/g;
 						
-						if( $js_script =~ m/<script type="text\/javascript">window.appToken/ ) {
-							$apptoken = $js_script;
+						if( not defined $2 ) {
+							ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse token URL)\n\n";
+							open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+							print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to parse token URL)";
+							close $error_file;
+							exit;
+						}
+
+						# GET APPTOKEN
+						my $apptoken_url = "https://$provider/$2";
+						
+						my $apptoken_agent    = LWP::UserAgent->new(
+							ssl_opts => {
+								SSL_verify_mode => $ssl_mode,
+								verify_hostname => $ssl_mode,
+								SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+							},
+							agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+						);
+
+						my $apptoken_request  = HTTP::Request::Common::GET($apptoken_url);
+						my $apptoken_response = $apptoken_agent->request($apptoken_request);
+						
+						if( $apptoken_response->is_error ) {
+							ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to get token json file)\n\n";
+							ERROR "RESPONSE:\n\n" . $apptoken_response->content . "\n\n";
+							open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+							print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to get token json file)";
+							close $error_file;
+							exit;
+						}
+
+						my $analyse_apptoken_login;
+						
+						eval{
+							$analyse_apptoken_login = decode_json($apptoken_response->content);
+						};
+
+						if( not defined $analyse_apptoken_login ) {
+							INFO "Unable to parse apptoken json data (trying old apptoken method now...)\n\n";
+						
+						} else {
+						
+							if( $analyse_apptoken_login->{"success"} ) {
+								$apptoken = $analyse_apptoken_login->{"session_token"}
+							} else {
+								ERROR "Unable to parse apptoken from json file\n\n";
+								open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+								print $error_file "ERROR: Unable to parse apptoken from json file";
+								close $error_file;
+								exit;
+							}
+							
 						}
 						
 					}
-					
-					if( defined $apptoken ) {
-						$apptoken        =~ s/(.*window.appToken = ')(.*)(';.*)/$2/g;
-					} else {
-						INFO "Unable to retrieve apptoken (trying another apptoken method now...)\n\n";
-					}
-				}
 				
-				if( not defined $apptoken ) {
+				
+					# METHOD 3: GET APPTOKEN VIA HOMEPAGE
+					if( not defined $apptoken ) {
+						
+						my $new_main_url      = "https://$provider/";
 					
-					my $new_token_url = "https://$provider/token-46a1dfccbd4c3bdaf6182fea8f8aea3f.json";
-					
-					my $new_token_agent    = LWP::UserAgent->new(
-						ssl_opts => {
-							SSL_verify_mode => $ssl_mode,
-							verify_hostname => $ssl_mode,
-							SSL_ca_file => Mozilla::CA::SSL_ca_file()  
-						},
-						agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
-					);
+						my $new_main_agent    = LWP::UserAgent->new(
+							ssl_opts => {
+								SSL_verify_mode => $ssl_mode,
+								verify_hostname => $ssl_mode,
+								SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+							},
+							agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+						);
 
-					my $new_token_request  = HTTP::Request::Common::GET($new_token_url);
-					my $new_token_response = $new_token_agent->request($new_token_request);
+						my $new_main_request  = HTTP::Request::Common::GET($new_main_url);
+						my $new_main_response = $new_main_agent->request($new_main_request);
 
-					if( $new_token_response->is_error ) {
-						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
-						ERROR "RESPONSE:\n\n" . $new_token_response->content . "\n\n";
-						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
-						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)";
-						close $error_file;
-						exit;
+						if( $new_main_response->is_error ) {
+							ERROR "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
+							ERROR "RESPONSE:\n\n" . $new_main_response->content . "\n\n";
+							open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+							print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)";
+							close $error_file;
+							exit;
+						}
+
+						my $new_parser        = HTML::Parser->new;
+						my $new_main_content  = $new_main_response->content;
+						
+						foreach my $js_script (@scriptvalues) {
+							
+							if( $js_script =~ m/<script type="text\/javascript">window.appToken/ ) {
+								$apptoken = $js_script;
+							}
+							
+						}
+						
+						if( defined $apptoken ) {
+							$apptoken        =~ s/(.*window.appToken = ')(.*)(';.*)/$2/g;
+						} else {
+							INFO "Unable to retrieve apptoken (trying another apptoken method now...)\n\n";
+						}
 					}
 					
-					my $new_token_content  = $new_token_response->content;
-					
-					if( $new_token_content =~ m/{"success": true, "session_token": "/ ) {
-						$apptoken = $new_token_content;
-						$apptoken =~ s/(\{"success": true, "session_token": ")(.*)("\})/$2/g;
-					} else {
-						ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve apptoken)\n\n";
-						open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
-						print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve apptoken)";
-						close $error_file;
-						exit;
+					if( not defined $apptoken ) {
+						
+						my $new_token_url = "https://$provider/token-46a1dfccbd4c3bdaf6182fea8f8aea3f.json";
+						
+						my $new_token_agent    = LWP::UserAgent->new(
+							ssl_opts => {
+								SSL_verify_mode => $ssl_mode,
+								verify_hostname => $ssl_mode,
+								SSL_ca_file => Mozilla::CA::SSL_ca_file()  
+							},
+							agent => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:54.0) Gecko/20100101 Firefox/72.0"
+						);
+
+						my $new_token_request  = HTTP::Request::Common::GET($new_token_url);
+						my $new_token_response = $new_token_agent->request($new_token_request);
+
+						if( $new_token_response->is_error ) {
+							ERROR "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)\n\n";
+							ERROR "RESPONSE:\n\n" . $new_token_response->content . "\n\n";
+							open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+							print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (no internet connection / service unavailable)";
+							close $error_file;
+							exit;
+						}
+						
+						my $new_token_content  = $new_token_response->content;
+						
+						if( $new_token_content =~ m/{"success": true, "session_token": "/ ) {
+							$apptoken = $new_token_content;
+							$apptoken =~ s/(\{"success": true, "session_token": ")(.*)("\})/$2/g;
+						} else {
+							ERROR "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve apptoken)\n\n";
+							open my $error_file, ">", "error.txt" or die ERROR  "UNABLE TO CREATE ERROR FILE!\n\n";
+							print $error_file "UNABLE TO LOGIN TO WEBSERVICE! (unable to retrieve apptoken)";
+							close $error_file;
+							exit;
+						}
 					}
 				}
 					
