@@ -1,3 +1,5 @@
+#### PLEASE NOTE THAT THIS VERSION OF TELERISING WILL NO LONGER BE MAINTAINED.
+
 # telerising API
 Get advanced access to Zattoo internet streams
 
